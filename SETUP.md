@@ -72,7 +72,7 @@ FIGMA_PRODUCT_TOKENS_FILE_ID=mno345...
 FIGMA_BRAND_TOKENS_FILE_ID=pqr678...
 
 # Required: Database
-POSTGRES_URL=postgres://user:pass@host:5432/dbname
+POSTGRES_URL=postgres://postgres.qbwqsyfohqkpfggvxzno:0Nn2oy1oVFmDikOV@aws-1-us-east-1.pooler.supabase.com:6543/postgres?sslmode=require&supa=base-pooler.x
 
 # Optional but recommended: For caching Figma responses
 REDIS_URL=redis://default:password@host:6379
