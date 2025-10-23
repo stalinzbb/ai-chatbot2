@@ -36,15 +36,15 @@ export const myProvider = isTestEnvironment
   : customProvider({
       languageModels: {
         // Main chat model - Claude 3.5 Sonnet for best Design System understanding
-        "chat-model": openrouter("anthropic/claude-3.5-sonnet"),
+        "chat-model": openrouter("openai/gpt-4o-mini"),
         // Reasoning model - uses Claude 3 Opus for complex reasoning
         "chat-model-reasoning": wrapLanguageModel({
-          model: openrouter("anthropic/claude-3-opus"),
+          model: openrouter("openai/gpt-4o-mini"),
           middleware: extractReasoningMiddleware({ tagName: "think" }),
         }),
         // Title model - GPT-4o-mini for cost-effective title generation
         "title-model": openrouter("openai/gpt-4o-mini"),
         // Artifact model - Claude 3.5 Sonnet for document generation
-        "artifact-model": openrouter("anthropic/claude-3.5-sonnet"),
+        "artifact-model": openrouter("openai/gpt-4o-mini"),
       },
     });
