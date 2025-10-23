@@ -1,10 +1,20 @@
-import { gateway } from "@ai-sdk/gateway";
+import { createOpenAI } from "@ai-sdk/openai";
 import {
   customProvider,
   extractReasoningMiddleware,
   wrapLanguageModel,
 } from "ai";
 import { isTestEnvironment } from "../constants";
+
+// Configure OpenRouter as a provider
+const openrouter = createOpenAI({
+  baseURL: "https://openrouter.ai/api/v1",
+  apiKey: process.env.OPENROUTER_API_KEY,
+  headers: {
+    "HTTP-Referer": process.env.OPENROUTER_SITE_URL || "http://localhost:3000",
+    "X-Title": "Double Good Design System Chat",
+  },
+});
 
 export const myProvider = isTestEnvironment
   ? (() => {
@@ -25,12 +35,16 @@ export const myProvider = isTestEnvironment
     })()
   : customProvider({
       languageModels: {
-        "chat-model": gateway.languageModel("xai/grok-2-vision-1212"),
+        // Main chat model - Claude 3.5 Sonnet for best Design System understanding
+        "chat-model": openrouter("anthropic/claude-3.5-sonnet"),
+        // Reasoning model - uses Claude 3 Opus for complex reasoning
         "chat-model-reasoning": wrapLanguageModel({
-          model: gateway.languageModel("xai/grok-3-mini"),
+          model: openrouter("anthropic/claude-3-opus"),
           middleware: extractReasoningMiddleware({ tagName: "think" }),
         }),
-        "title-model": gateway.languageModel("xai/grok-2-1212"),
-        "artifact-model": gateway.languageModel("xai/grok-2-1212"),
+        // Title model - GPT-4o-mini for cost-effective title generation
+        "title-model": openrouter("openai/gpt-4o-mini"),
+        // Artifact model - Claude 3.5 Sonnet for document generation
+        "artifact-model": openrouter("anthropic/claude-3.5-sonnet"),
       },
     });

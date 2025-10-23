@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm run lint)",
+      "Bash(npx ultracite@latest fix:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
