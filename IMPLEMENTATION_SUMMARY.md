@@ -8,35 +8,35 @@ Your Vercel AI Chatbot has been successfully transformed into a Double Good Desi
 - **Replaced:** xAI Gateway → OpenRouter
 - **File:** `lib/ai/providers.ts`
 - **Models Configured:**
-  - Claude 3.5 Sonnet (main chat)
-  - Claude 3 Opus (reasoning)
-  - GPT-4o-mini (titles)
+  - Claude 3.5 Sonnet (chat)
+  - Claude 3.5 Sonnet + reasoning middleware (think tags)
+  - Claude 3.5 Sonnet (titles & artifacts)
 
 ### 2. **Figma Integration** ✅
 - **New Files Created:**
-  - `lib/figma/config.ts` - File configuration & mappings
-  - `lib/figma/client.ts` - Figma API client with caching
+  - `lib/mcp/client.ts` – MCP client singleton for Figma Desktop
+  - `lib/mcp/tools/*.ts` – MCP tool wrappers (`getDesignContext`, `getVariableDefs`, `getMetadata`, `getScreenshot`, `getCodeConnectMap`, `listFileVariables`)
+  - `lib/mcp/utils.ts` – Helpers for cloning MCP content and parsing metadata
+- **Updated:** `lib/figma/client.ts` – Adds REST helpers used by the aggregator (`getFileVariables`, etc.)
 
 ### 3. **Custom AI Tools** ✅
-- **queryFigmaComponents** (`lib/ai/tools/query-figma-components.ts`)
-  - Search components by name
-  - Filter by platform (native/web)
-  - Returns Figma links
+- **MCP tools** (`lib/mcp/tools/*.ts`)
+  - `getDesignContext`, `getVariableDefs`, `getMetadata`, `getScreenshot`, `getCodeConnectMap`
+  - All expose `inputSchema` for OpenRouter compatibility
 
-- **getDesignTokensTool** (`lib/ai/tools/get-design-tokens.ts`)
-  - Search design tokens
-  - Filter by type (color, spacing, typography, etc.)
-  - Returns token values
+- **Hybrid aggregator** (`lib/mcp/tools/list-file-variables.ts`)
+  - Discovers nodes via MCP then calls REST endpoints when a `fileId` is supplied
+  - Returns merged data for tokens, variables, and component summaries
 
 ### 4. **System Prompts** ✅
 - **Updated:** `lib/ai/prompts.ts`
-- **New Role:** Design System Support Specialist
-- **Context:** All 6 Figma files and their purposes
+- **Role:** Design System Support Specialist
+- **Guidance:** Detailed instructions for MCP tools and the `listFileVariables` aggregator
 
 ### 5. **Chat Integration** ✅
 - **Updated:** `app/(chat)/api/chat/route.ts`
-- **Added:** New Figma tools to chat pipeline
-- **Result:** AI can now query Figma automatically
+- **Added:** MCP tools, `listFileVariables`, and billing-aware error handling
+- **Result:** AI can query Figma via MCP and enrich results with REST data when `fileId` is provided
 
 ### 6. **Configuration** ✅
 - **Created:** `.env.local` with all required variables
@@ -96,28 +96,30 @@ Your Vercel AI Chatbot has been successfully transformed into a Double Good Desi
 
 ### User Query Flow:
 
-1. **User asks:** "What button components do we have?"
-2. **AI analyzes** the query and decides to use `queryFigmaComponents` tool
-3. **Tool fetches** from Figma API (with caching)
-4. **AI receives** component data with links
-5. **AI responds** with formatted answer including Figma links
+1. **User asks:** e.g., "List every token in the Product Tokens file."
+2. **AI analyzes** the prompt and selects an MCP tool (e.g., `getVariableDefs`) or the hybrid `listFileVariables` when a `fileId` is supplied.
+3. **Tool execution:**
+   - MCP client connects to Figma Desktop and retrieves metadata/context.
+   - `listFileVariables` optionally calls the Figma REST API (`getFileVariables`, `getFileComponents`, `getFileStyles`) to enrich the response.
+4. **AI synthesizes** the returned JSON and crafts a human-readable answer with relevant Figma links.
+5. **UI streams** the response, showing expandable panels for tool output when applicable.
 
 ### Example Queries It Can Handle:
 
 **Component Queries:**
-- "Show me all button components"
-- "What navbar components are in native?"
-- "Compare web and native list items"
+- "Show me every component in the Native Components file."
+- "How is the web navbar implemented?"
+- "Where is the native modal referenced in Code Connect?"
 
 **Token Queries:**
-- "What's the border radius token?"
-- "Show me all color tokens"
-- "What spacing values do we use?"
+- "List all tokens from the Product Tokens file."
+- "What is the hex value for icon/default/secondary?"
+- "Compare spacing tokens between Product and Brand collections."
 
 **General Questions:**
-- "How does the native button differ from web?"
-- "What design tokens are available?"
-- "Show me the product tokens"
+- "Capture a screenshot of the checkout header."
+- "Summarize the structure of the Web Master file."
+- "Which variables exist for typography scale?"
 
 ## 🏗️ Architecture
 

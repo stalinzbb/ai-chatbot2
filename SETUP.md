@@ -1,204 +1,169 @@
-# Double Good Design System Chat - Setup Guide
+# Double Good Design System Chat — Setup Guide
 
-This chatbot is configured to support the Double Good Design System by answering questions about components, design tokens, and implementation details from your Figma files.
+This chatbot answers Double Good design-system questions by combining the Vercel AI SDK, OpenRouter, and the Figma Desktop MCP server.
 
 ## Prerequisites
 
-1. **OpenRouter Account** - For LLM access
-2. **Figma Account** - With access to Double Good Design System files
-3. **Database** - Postgres (Vercel Postgres or local)
-4. **Redis** (Optional but recommended) - For caching Figma API responses
+1. **OpenRouter account with active credits** – requests fail with `402 Insufficient credits` if the balance is empty.
+2. **Figma Desktop** with MCP enabled (`http://127.0.0.1:3845/mcp`) and the relevant files open.
+3. **Figma personal access token** – required when the REST fallback is used.
+4. **PostgreSQL database** – local instance, Neon, or Vercel Postgres.
+5. **Redis** *(optional)* – caches REST responses for the aggregator tool.
+6. **Node.js 20+** and **pnpm 9+**.
 
 ## Step-by-Step Setup
 
-### 1. Get OpenRouter API Key
+### 1. Prepare OpenRouter
 
-1. Go to [https://openrouter.ai](https://openrouter.ai)
-2. Sign up or log in
-3. Navigate to "Keys" section
-4. Create a new API key
-5. Copy the key for later use
+1. Sign in at [openrouter.ai](https://openrouter.ai).
+2. Create an API key dedicated to this project.
+3. Confirm the key belongs to an account or organisation with credits.
+4. Store the key securely (do not commit it).
 
-**Cost Estimates:**
-- Claude 3.5 Sonnet: ~$3 per million input tokens, ~$15 per million output tokens
-- GPT-4o-mini (for titles): ~$0.15 per million input tokens
+> 💡 Claude 3.5 Sonnet currently costs roughly $3 / million input tokens and $15 / million output tokens (check OpenRouter for the latest pricing).
 
-### 2. Get Figma Personal Access Token
+### 2. Generate a Figma Personal Access Token
 
-1. Go to [https://www.figma.com/settings](https://www.figma.com/settings)
-2. Scroll to "Personal Access Tokens"
-3. Click "Generate new token"
-4. Name it (e.g., "Design System Chat")
-5. Copy the token immediately (you won't see it again!)
+1. Visit [figma.com/settings](https://www.figma.com/settings).
+2. Under **Personal access tokens**, generate a token.
+3. Copy it immediately—Figma will not display it again.
 
-### 3. Get Figma File IDs
+### 3. Collect Figma File IDs
 
-For each of your 6 Figma files, get the file ID from the URL:
+Pull the `FILE_ID` segment from each design file URL (`https://www.figma.com/file/FILE_ID/...`). Required files:
+- Native Components
+- Web Components
+- Native Master
+- Web Master
+- Product Tokens
+- Brand Tokens
 
-```
-https://www.figma.com/file/FILE_ID_HERE/file-name
-                              ^^^^^^^^^^^
-                              This is the file ID
-```
+### 4. Create `.env.local`
 
-You need IDs for:
-- ✅ Native Components
-- ✅ Web Components
-- ✅ Native Master
-- ✅ Web Master
-- ✅ Product Tokens
-- ✅ Brand Tokens
-
-### 4. Configure Environment Variables
-
-Copy `.env.local` and fill in your actual values:
+Add an `.env.local` file (ignored by git) with placeholders until you can populate the real secrets:
 
 ```bash
-# Required: Generate with `openssl rand -base64 32`
-AUTH_SECRET=your-generated-secret-here
+# Authentication
+AUTH_SECRET=<generate_with_openssl>
+OPENROUTER_API_KEY=<your_openrouter_api_key>
 
-# Required: OpenRouter API Key
-OPENROUTER_API_KEY=sk-or-v1-xxxxx
+# Figma configuration
+FIGMA_MCP_SERVER_URL=http://127.0.0.1:3845/mcp
+FIGMA_ACCESS_TOKEN=<your_figma_pat>
+FIGMA_NATIVE_COMPONENTS_FILE_ID=<figma_file_id>
+FIGMA_WEB_COMPONENTS_FILE_ID=<figma_file_id>
+FIGMA_NATIVE_MASTER_FILE_ID=<figma_file_id>
+FIGMA_WEB_MASTER_FILE_ID=<figma_file_id>
+FIGMA_PRODUCT_TOKENS_FILE_ID=<figma_file_id>
+FIGMA_BRAND_TOKENS_FILE_ID=<figma_file_id>
 
-# Required: Figma Personal Access Token
-FIGMA_ACCESS_TOKEN=figd_xxxxx
-
-# Required: Figma File IDs
-FIGMA_NATIVE_COMPONENTS_FILE_ID=abc123...
-FIGMA_WEB_COMPONENTS_FILE_ID=def456...
-FIGMA_NATIVE_MASTER_FILE_ID=ghi789...
-FIGMA_WEB_MASTER_FILE_ID=jkl012...
-FIGMA_PRODUCT_TOKENS_FILE_ID=mno345...
-FIGMA_BRAND_TOKENS_FILE_ID=pqr678...
-
-# Required: Database
-POSTGRES_URL=postgres://postgres.qbwqsyfohqkpfggvxzno:0Nn2oy1oVFmDikOV@aws-1-us-east-1.pooler.supabase.com:6543/postgres?sslmode=require&supa=base-pooler.x
-
-# Optional but recommended: For caching Figma responses
-REDIS_URL=redis://default:password@host:6379
-
-# Optional: Vercel Blob for file storage
-BLOB_READ_WRITE_TOKEN=vercel_blob_xxx
+# Database / caching
+POSTGRES_URL=<postgres_connection_string>
+REDIS_URL=<optional_redis_connection>
 ```
 
-### 5. Set Up Database
+> ⚠️ Treat all secrets as sensitive. Keep them in a password manager or environment manager—never commit them to the repository.
+
+### 5. Install Dependencies & Migrate the Database
 
 ```bash
-# Install dependencies
 pnpm install
-
-# Run database migrations
 pnpm db:migrate
-
-# Optional: Open database studio to verify
+# Optional: inspect the schema with Drizzle Studio
 pnpm db:studio
 ```
 
-### 6. Run the Application
+### 6. Launch the App Locally
 
 ```bash
-# Development mode
 pnpm dev
-
-# The app will be available at http://localhost:3000
 ```
 
-### 7. Test the Integration
+- The dev server runs on the first available port (default `3000`).
+- Authenticate via the UI or hit `/api/auth/guest` to seed a guest session.
+- Ensure Figma Desktop is running with the appropriate file open before issuing MCP tool calls.
 
-Try these example queries in the chat:
+### 7. Verify OpenRouter Access
 
-1. **Component Query:**
-   ```
-   "Show me all button components in the native design system"
-   ```
+Before using the UI, confirm the key works:
 
-2. **Token Query:**
-   ```
-   "What is the border radius for 2X spacing?"
-   ```
+```bash
+curl -X POST https://openrouter.ai/api/v1/chat/completions \
+  -H "Authorization: Bearer $OPENROUTER_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"model":"anthropic/claude-3.5-sonnet","messages":[{"role":"user","content":"ping"}]}'
+```
 
-3. **Platform Comparison:**
-   ```
-   "Compare the navbar component between native and web"
-   ```
+If you receive `402 Insufficient credits`, top up the account and retry.
 
 ## Architecture Overview
 
 ### Model Configuration
 
-The chatbot uses OpenRouter to access:
-- **Claude 3.5 Sonnet** - Main chat model (best for Design System understanding)
-- **Claude 3 Opus** - Reasoning model (for complex queries)
-- **GPT-4o-mini** - Title generation (cost-effective)
+All chat roles reuse **Claude 3.5 Sonnet** via OpenRouter:
+- `chat-model` – standard chat sessions.
+- `chat-model-reasoning` – the same model wrapped with the SDK’s reasoning middleware (emits `<think>` tags).
+- `title-model` and `artifact-model` – reuse Sonnet for consistent summaries and artifacts.
 
-### Custom Tools
+### Tooling
 
-Two specialized AI tools access your Figma files:
+Primary MCP tools live in `/lib/mcp/tools/`:
+- `getDesignContext` – implementation snippets for the selected node.
+- `getVariableDefs` – variable definitions tied to the node.
+- `getMetadata` – hierarchical file overview to discover node IDs.
+- `getScreenshot` – captures a snapshot of the current node.
+- `getCodeConnectMap` – locates Code Connect mappings.
+- `listFileVariables` – aggregates MCP discovery with Figma REST calls (when a `fileId` is provided) to enumerate tokens, variables, and components without manual selection.
 
-1. **queryFigmaComponents** - Searches for UI components
-   - Supports platform filtering (native/web/both)
-   - Returns component details with Figma links
-   - Cached for performance
-
-2. **getDesignTokensTool** - Retrieves design tokens
-   - Searches colors, spacing, typography, borders, shadows
-   - Returns token values and definitions
-   - Cached for performance
+Legacy REST helpers (`queryFigmaComponents`, `getDesignTokensTool`) remain for reference but are deprecated.
 
 ### Caching Strategy
 
-- **Redis caching** (if configured): 1 hour TTL
-- **No Redis**: Direct API calls (slower, may hit rate limits)
+- Redis (or Vercel KV) is optional but recommended when using `listFileVariables`, reducing repeated REST calls.
+- MCP calls always run through the local Figma Desktop session and are not cached by the app.
 
 ## Troubleshooting
 
 ### "FIGMA_ACCESS_TOKEN is not configured"
-- Check that your `.env.local` file exists
-- Verify the token is correctly copied (starts with `figd_`)
-- Restart the dev server after adding variables
+- Confirm `.env.local` exists.
+- Ensure the token starts with `figd_` and restart the dev server after editing.
 
 ### "No components found"
-- Verify Figma file IDs are correct
-- Check that your Figma token has access to these files
-- Try searching with different keywords
+- Verify the correct Figma file is open in Figma Desktop before the MCP call.
+- Double-check file IDs and personal access token scopes.
+- Use `listFileVariables` with a `fileId` if you need a complete listing without manual selection.
 
-### "Rate limit exceeded"
-- Figma API has rate limits (check their docs)
-- Set up Redis for caching to reduce API calls
-- Wait a few minutes before retrying
-
-### OpenRouter errors
-- Verify your API key is active
-- Check you have credits/payment method set up
-- Review OpenRouter dashboard for usage/errors
+### OpenRouter errors / "We’re having trouble sending your message"
+- Most often caused by `402 Insufficient credits` – add credits or switch to test mode.
+- Verify the API key is still valid and regenerate if necessary.
+- Check the OpenRouter dashboard for additional error details.
 
 ## Deployment to Vercel
 
-1. Push your code to GitHub
-2. Connect to Vercel
-3. Add all environment variables in Vercel dashboard
-4. Deploy!
+1. Push your code to GitHub.
+2. Connect the repository to Vercel (or your hosting provider of choice).
+3. Configure **all** environment variables in the hosting dashboard.
+4. Ensure the production OpenRouter key has credits and your domain is whitelisted in the OpenRouter settings.
 
-For production, consider:
-- Setting up Vercel Postgres
-- Setting up Vercel KV (Redis)
-- Adding OpenRouter site URL in headers
+For production deployments also consider:
+- Managed Postgres (Vercel Postgres, Neon, etc.).
+- Managed Redis (Vercel KV, Upstash) for REST caching.
+- Mapping a remote MCP server or alternative fallback if Figma Desktop cannot run alongside the deployment.
 
 ## Cost Optimization Tips
 
-1. **Use Redis caching** - Dramatically reduces Figma API calls
-2. **Monitor OpenRouter usage** - Set up usage alerts
-3. **Consider cheaper models** - For simple queries, you could use GPT-4o-mini
-4. **Limit context** - The tools return only relevant data to reduce token usage
+1. Add Redis caching to avoid repeated REST requests when enumerating tokens/components.
+2. Monitor OpenRouter usage and configure alerts for low balances.
+3. Trim tool outputs before sending them back through the LLM to reduce token usage.
+4. Consider downgrading specific flows (e.g., title generation) to a cheaper model if consistent behaviour is not required.
 
 ## Next Steps
 
 Once running, consider:
-- [ ] Adding more specialized tools (e.g., component comparison)
-- [ ] Implementing semantic search for better component discovery
-- [ ] Adding screenshot capabilities for visual component references
-- [ ] Creating custom UI for component previews
-- [ ] Adding analytics to track common queries
+- [ ] Adding semantic search or vector recall for node discovery.
+- [ ] Implementing automated sanity checks that verify Figma MCP availability.
+- [ ] Expanding MCP tooling (e.g., view diffs between nodes, export assets).
+- [ ] Wiring up analytics to identify the most common questions.
 
 ## Support
 
@@ -209,7 +174,7 @@ For issues:
 4. Check OpenRouter dashboard for API errors
 
 Need help? Review the code in:
-- `lib/figma/` - Figma integration
-- `lib/ai/tools/` - AI tool definitions
-- `lib/ai/providers.ts` - Model configuration
-- `lib/ai/prompts.ts` - System prompts
+- `lib/mcp/` – MCP client and tooling wrappers.
+- `lib/ai/providers.ts` – Model configuration and OpenRouter bindings.
+- `lib/ai/prompts.ts` – Prompt templates and tool guidance.
+- `lib/ai/tools/` – Legacy REST helpers kept for reference.

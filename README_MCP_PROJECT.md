@@ -9,8 +9,8 @@ Build an AI-powered chatbot that helps users query the **Double Good Design Syst
 ## 🚨 Current Status: BLOCKED
 
 **Status:** 🔴 Not Functional
-**Blocker:** OpenRouter rejects tool schemas - chat responses fail
-**Last Updated:** 2025-01-24
+**Blocker:** OpenRouter account has no credits (requests return 402)
+**Last Updated:** 2025-10-24
 
 ---
 
@@ -31,21 +31,19 @@ All comprehensive documentation is in the `/docs` folder:
 ## ⚡ Quick Overview
 
 ### What Works ✅
-- MCP client connects to Figma Desktop (`http://127.0.0.1:3845/mcp`)
-- Database setup and authentication (NextAuth + PostgreSQL)
-- OpenRouter API integration (GPT-4o-mini)
-- 5 MCP tools implemented and ready
+- MCP client connects to Figma Desktop (`http://127.0.0.1:3845/mcp`).
+- Database setup and authentication (NextAuth + PostgreSQL).
+- OpenRouter wiring for Claude 3.5 Sonnet across chat, reasoning, and title roles.
+- MCP tooling (`get_design_context`, `get_variable_defs`, `get_metadata`, `get_screenshot`, `get_code_connect_map`) plus the `list_file_variables` aggregator (MCP + REST hybrid).
 
 ### What's Broken ❌
-- **Critical:** Chat responses fail due to tool schema errors
-- **Minor:** React hydration warning in UI
+- **Critical:** Chat responses fail because OpenRouter returns `402 Insufficient credits`.
+- **Minor:** React hydration warning in the chat header.
 
 ### The Issue
 ```
-OpenRouter Error 400:
-"Invalid schema for function 'getWeather':
- schema must be a JSON Schema of 'type: \"object\"',
- got 'type: \"None\"'."
+OpenRouter Error 402:
+"Insufficient credits. This account never purchased credits."
 ```
 
 ---
@@ -57,7 +55,7 @@ User Question
     ↓
 AI Chatbot (Next.js + Vercel AI SDK)
     ↓
-OpenRouter API (GPT-4o-mini)
+OpenRouter API (Claude 3.5 Sonnet)
     ↓ [Tool Calls]
 MCP Client → Figma Desktop MCP Server
     ↓ [Design Data]
@@ -74,7 +72,7 @@ User sees answer
 
 - **Framework:** Next.js 15.3
 - **LLM SDK:** Vercel AI SDK 5.0.26
-- **LLM Provider:** OpenRouter (GPT-4o-mini)
+- **LLM Provider:** OpenRouter (Claude 3.5 Sonnet)
 - **MCP SDK:** @modelcontextprotocol/sdk 1.20.1
 - **Auth:** NextAuth.js 5.0
 - **Database:** PostgreSQL + Drizzle ORM
@@ -88,17 +86,19 @@ User sees answer
 ```
 /lib/mcp/
 ├── client.ts              # MCP client singleton
-└── tools/                 # 5 MCP tools
+└── tools/                 # MCP tools and aggregators
     ├── get-design-context.ts
     ├── get-variable-defs.ts
     ├── get-metadata.ts
     ├── get-screenshot.ts
-    └── get-code-connect-map.ts
+    ├── get-code-connect-map.ts
+    └── list-file-variables.ts
+├── utils.ts
 ```
 
 ### Chat API
 ```
-/app/(chat)/api/chat/route.ts  # Main chat endpoint (has issues)
+/app/(chat)/api/chat/route.ts  # Main chat endpoint (tool registration + billing errors)
 ```
 
 ### Configuration
@@ -125,21 +125,19 @@ pnpm dev
 # Open http://localhost:3000
 ```
 
-**Current Issue:** Messages will show "thinking..." then disappear.
+**Current Issue:** Messages fail with "We’re having trouble sending" until OpenRouter credits are restored.
 
 ---
 
 ## 🔧 Temporary Workaround
 
-To test basic chat without tools:
+To test the UI without incurring costs, switch to the SDK’s test provider or mock responses:
 
-**Edit `/app/(chat)/api/chat/route.ts`:**
 ```typescript
-experimental_activeTools: [],  // Empty
-tools: {},                     // Empty
+const provider = isTestEnvironment ? testProvider : openrouterProvider;
 ```
 
-This disables tool calling, allowing basic conversation.
+This bypasses OpenRouter billing while keeping MCP tooling wired up.
 
 ---
 
@@ -148,31 +146,27 @@ This disables tool calling, allowing basic conversation.
 | Feature | Status | Notes |
 |---------|--------|-------|
 | MCP Client | ✅ Done | Connects to Figma Desktop |
-| MCP Tools | ✅ Created | 5 tools ready |
+| MCP Tools | ✅ Created | MCP wrappers + `list_file_variables` aggregator |
 | Database | ✅ Done | PostgreSQL + migrations |
 | Auth | ✅ Done | NextAuth login/register |
-| OpenRouter | ✅ Done | API key working |
-| Tool Schemas | ❌ Broken | OpenRouter rejects schemas |
-| Chat Streaming | ❌ Broken | Dependent on tool schemas |
+| OpenRouter | ⚠️ Needs credits | Configuration ready; account unfunded |
+| Chat Streaming | ❌ Blocked | OpenRouter returns 402 |
 | UI | ⚠️ Works | Minor hydration warning |
 
-**Overall:** ~80% complete, blocked by tool schema issue
+**Overall:** ~80% complete, blocked by OpenRouter billing
 
 ---
 
 ## 🎯 Next Steps
 
 ### Immediate (To Unblock)
-1. Debug tool schema serialization
-2. Test with zero tools → add incrementally
-3. Manually define OpenAI function schemas
-4. OR switch LLM provider temporarily
+1. Add credits to the configured OpenRouter account (or swap in a funded key).
+2. Confirm `/api/chat` streams successfully once credits are active.
 
 ### After Unblocking
-1. Test MCP tools end-to-end
-2. Fix hydration error
-3. Improve error handling
-4. Add loading states
+1. Test MCP tools end-to-end, including `list_file_variables` REST fallback.
+2. Fix the hydration warning in `components/chat-header.tsx`.
+3. Improve error handling so billing failures surface in the UI.
 
 ### Future Enhancements
 1. Hybrid approach (REST API + MCP)
@@ -183,10 +177,10 @@ This disables tool calling, allowing basic conversation.
 
 ## 💡 Key Insights
 
-1. **MCP Integration Works** - The MCP client successfully connects and calls tools
-2. **Schema Validation is Critical** - OpenRouter is strict about function schemas
-3. **Vercel AI SDK Limitations** - Zod → JSON Schema conversion may have issues
-4. **Local-Only for Now** - MCP requires Figma Desktop running locally
+1. **MCP Integration Works** – The MCP client successfully connects and calls tools.
+2. **Billing is a Hard Stop** – OpenRouter returns 402 immediately when credits are exhausted.
+3. **Hybrid Approach Helps** – `list_file_variables` bridges MCP discovery and REST enumeration.
+4. **Local-Only for Now** – MCP still requires Figma Desktop running locally.
 
 ---
 

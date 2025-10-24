@@ -1,8 +1,8 @@
 # Quick Start Guide - AI Chatbot with Figma MCP
 
-## 🚨 Current Status: NOT WORKING
+## 🚨 Current Status: BLOCKED
 
-The chatbot is currently **not functional** due to tool schema validation errors with OpenRouter. See [PROJECT_STATUS.md](./PROJECT_STATUS.md) for full details.
+The chatbot is currently **not functional** because the configured OpenRouter account has **no credits**. Every chat request returns HTTP 402 until credits are added. See [PROJECT_STATUS.md](./PROJECT_STATUS.md) for full details.
 
 ---
 
@@ -10,7 +10,7 @@ The chatbot is currently **not functional** due to tool schema validation errors
 
 1. **Figma Desktop** running with MCP server enabled (`http://127.0.0.1:3845/mcp`)
 2. **PostgreSQL** database (already configured in `.env.local`)
-3. **OpenRouter API Key** (already in `.env.local`)
+3. **OpenRouter API Key** (must belong to an account with credits)
 4. **Node.js** v24.7.0
 5. **pnpm** 9.12.3
 
@@ -44,39 +44,31 @@ pnpm dev
 
 **Error:**
 ```
-Provider returned error: Invalid schema for function 'getWeather'
+Provider returned error: Insufficient credits. This account never purchased credits.
 ```
 
 **What's happening:**
-- User sends message
-- Chat shows "thinking..."
-- Message vanishes
-- No response appears
-- Must reload page
+- User sends a message.
+- Chat shows "We’re having trouble sending your message."
+- Terminal logs show `AI_APICallError` with status 402.
+- Response does not stream back until the account is funded.
 
 **Why:**
-OpenRouter rejects the tool schemas being sent by the Vercel AI SDK.
+OpenRouter rejects requests from accounts without credits, even if authentication succeeds.
 
 ---
 
 ## 🔧 Quick Workaround (To Test Basic Chat)
 
-**Disable all tools temporarily:**
+**Use the SDK test provider:**
 
 Edit `/app/(chat)/api/chat/route.ts`:
 
 ```typescript
-// Line ~194-204
-experimental_activeTools: [],  // ← Empty array
-tools: {},                     // ← Empty object
+const provider = isTestEnvironment ? testProvider : openrouterProvider;
 ```
 
-Restart server:
-```bash
-pnpm dev
-```
-
-Now basic chat should work (without tool calling).
+Set `NODE_ENV=test` or adjust `isTestEnvironment` to `true` while developing. This returns mock responses without hitting OpenRouter until credits are available.
 
 ---
 
@@ -101,14 +93,14 @@ Now basic chat should work (without tool calling).
 
 - ✅ MCP client connection to Figma Desktop
 - ✅ Database and authentication
-- ✅ OpenRouter API connection
+- ✅ OpenRouter client configuration (requires credits)
 - ✅ Project structure
 
 ## ❌ What's Broken
 
-- ❌ Chat responses (tool schema error)
+- ❌ Chat responses (OpenRouter 402)
 - ⚠️ React hydration warning (non-critical)
 
 ---
 
-**Next Steps:** See "Priority 1: Fix Tool Schema Issue" in [PROJECT_STATUS.md](./PROJECT_STATUS.md)
+**Next Steps:** See "Priority 1: Restore OpenRouter Service" in [PROJECT_STATUS.md](./PROJECT_STATUS.md)

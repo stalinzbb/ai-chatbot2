@@ -4,7 +4,7 @@
 </a>
 
 <p align="center">
-    An AI-powered chatbot specialized in answering questions about the Double Good Design System, built with Next.js, AI SDK, and Figma API integration.
+    An AI-powered chatbot specialized in answering questions about the Double Good Design System, built with Next.js, the Vercel AI SDK, and Figma MCP integration.
 </p>
 
 <p align="center">
@@ -17,9 +17,9 @@
 ## 🎯 What This Does
 
 This chatbot helps your team understand and use the Double Good Design System by:
-- 🔍 Searching through Figma components (Native & Web)
-- 📐 Looking up design tokens (colors, spacing, typography, etc.)
-- 🔗 Providing direct Figma links to components
+- 🔍 Running MCP tool calls against the currently open Figma file (via Figma Desktop)
+- 📐 Listing tokens, variables, and styles from Figma using the combined MCP + REST aggregator tool
+- 🔗 Providing direct Figma links to components and variable collections
 - 💬 Answering questions about component usage and specifications
 - ⚡ Comparing native vs web implementations
 
@@ -31,7 +31,7 @@ This chatbot helps your team understand and use the Double Good Design System by
 ---
 
 <p align="center">
-  <a href="https://chat-sdk.dev"><strong>Read Docs</strong></a> ·
+  <a href="https://sdk.vercel.ai/"><strong>Read Docs</strong></a> ·
   <a href="#features"><strong>Features</strong></a> ·
   <a href="#model-providers"><strong>Model Providers</strong></a> ·
   <a href="#deploy-your-own"><strong>Deploy Your Own</strong></a> ·
@@ -47,7 +47,7 @@ This chatbot helps your team understand and use the Double Good Design System by
 - [AI SDK](https://ai-sdk.dev/docs/introduction)
   - Unified API for generating text, structured objects, and tool calls with LLMs
   - Hooks for building dynamic chat and generative user interfaces
-  - Supports xAI (default), OpenAI, Fireworks, and other model providers
+  - Supports OpenRouter-backed Anthropic models with streaming responses
 - [shadcn/ui](https://ui.shadcn.com)
   - Styling with [Tailwind CSS](https://tailwindcss.com)
   - Component primitives from [Radix UI](https://radix-ui.com) for accessibility and flexibility
@@ -61,17 +61,17 @@ This chatbot helps your team understand and use the Double Good Design System by
 
 This chatbot uses [OpenRouter](https://openrouter.ai) to access multiple AI models:
 
-- **Claude 3.5 Sonnet** - Main chat model (excellent for Design System understanding)
-- **Claude 3 Opus** - Reasoning model (for complex architectural questions)
-- **GPT-4o-mini** - Title generation (cost-effective)
+- **Claude 3.5 Sonnet** – Main chat model (general responses and artifacts)
+- **Claude 3.5 Sonnet (reasoning wrapper)** – Same base model wrapped with the SDK’s reasoning middleware for “think” tags
+- **Claude 3.5 Sonnet** – Also reused for title and artifact generation to keep behavior consistent
 
 ### Figma Integration
 
-The chatbot connects directly to your Figma files via the [Figma REST API](https://www.figma.com/developers/api):
-- Searches components across 6 design system files
-- Retrieves design tokens and variables
-- Caches responses with Redis for performance
-- Returns direct Figma links for easy navigation
+The chatbot connects directly to your Figma files through the [Figma Desktop MCP server](https://modelcontextprotocol.io/) and an aggregate tool that can fall back to the REST API when the file ID is provided:
+- Interactive MCP tools (`getDesignContext`, `getVariableDefs`, `getMetadata`, `getScreenshot`, `getCodeConnectMap`)
+- `listFileVariables` aggregator combines MCP discovery with REST calls to enumerate tokens, variables, and components
+- Optional Redis caching (if configured) keeps REST lookups within rate limits
+- Direct Figma links are returned for fast navigation
 
 ## Deploy Your Own
 
@@ -82,11 +82,12 @@ You can deploy your own version of the Next.js AI Chatbot to Vercel with one cli
 ## Running Locally
 
 ### Prerequisites:
-- OpenRouter API key
-- Figma Personal Access Token
-- 6 Figma file IDs (Native/Web Components, Masters, and Token files)
+- OpenRouter API key **with active credits**
+- Figma Desktop with MCP enabled (and access to the Double Good files)
+- Figma Personal Access Token (only needed for REST aggregation)
+- Figma file IDs (Native/Web components, master files, and tokens)
 - Postgres database (local or Vercel)
-- Redis (optional but recommended)
+- Redis (optional but recommended for caching REST results)
 
 ### Quick Setup:
 
@@ -94,13 +95,25 @@ See **[QUICK_START.md](QUICK_START.md)** for a step-by-step guide (5 minutes)
 
 Or follow these steps:
 
-1. **Configure environment variables** (edit `.env.local`):
+1. **Configure environment variables** (create `.env.local`):
    ```bash
-   OPENROUTER_API_KEY=your-key-here
-   FIGMA_ACCESS_TOKEN=your-token-here
-   FIGMA_NATIVE_COMPONENTS_FILE_ID=file-id
-   FIGMA_WEB_COMPONENTS_FILE_ID=file-id
-   # ... (see .env.local for all variables)
+   # Authentication / secrets
+   AUTH_SECRET=<generate_with_openssl>
+   OPENROUTER_API_KEY=<your_openrouter_api_key>
+
+   # Figma integration
+   FIGMA_MCP_SERVER_URL=http://127.0.0.1:3845/mcp
+   FIGMA_ACCESS_TOKEN=<your_figma_pat>
+   FIGMA_NATIVE_COMPONENTS_FILE_ID=<figma_file_id>
+   FIGMA_WEB_COMPONENTS_FILE_ID=<figma_file_id>
+   FIGMA_NATIVE_MASTER_FILE_ID=<figma_file_id>
+   FIGMA_WEB_MASTER_FILE_ID=<figma_file_id>
+   FIGMA_PRODUCT_TOKENS_FILE_ID=<figma_file_id>
+   FIGMA_BRAND_TOKENS_FILE_ID=<figma_file_id>
+
+   # Database / caching
+   POSTGRES_URL=<postgres_connection_string>
+   REDIS_URL=<optional_redis_connection>
    ```
 
 2. **Setup database:**
