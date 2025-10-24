@@ -71,7 +71,11 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="antialiased">
+      <body
+        className="antialiased"
+        suppressHydrationWarning
+        style={{ isolation: "isolate" }}
+      >
         <ThemeProvider
           attribute="class"
           defaultTheme="system"

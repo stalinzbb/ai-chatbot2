@@ -14,6 +14,16 @@ const openrouter = createOpenAI({
     "HTTP-Referer": process.env.OPENROUTER_SITE_URL || "http://localhost:3000",
     "X-Title": "Double Good Design System Chat",
   },
+  fetch: async (input, init) => {
+    if (process.env.NODE_ENV !== "production" && typeof input === "string") {
+      try {
+        console.log("[openrouter] request", input, init?.body);
+      } catch (error) {
+        console.log("[openrouter] request", input, "[unserializable body]", error);
+      }
+    }
+    return fetch(input, init);
+  },
 });
 
 export const myProvider = isTestEnvironment
@@ -35,16 +45,16 @@ export const myProvider = isTestEnvironment
     })()
   : customProvider({
       languageModels: {
-        // Main chat model - Claude 3.5 Sonnet for best Design System understanding
-        "chat-model": openrouter("openai/gpt-4o-mini"),
-        // Reasoning model - uses Claude 3 Opus for complex reasoning
+        // Main chat model - GPT-4o-mini for general chat handling
+        "chat-model": openrouter.chat("openai/gpt-4o-mini"),
+        // Reasoning model - runs through the same model but with reasoning middleware
         "chat-model-reasoning": wrapLanguageModel({
-          model: openrouter("openai/gpt-4o-mini"),
+          model: openrouter.chat("openai/gpt-4o-mini"),
           middleware: extractReasoningMiddleware({ tagName: "think" }),
         }),
         // Title model - GPT-4o-mini for cost-effective title generation
-        "title-model": openrouter("openai/gpt-4o-mini"),
-        // Artifact model - Claude 3.5 Sonnet for document generation
-        "artifact-model": openrouter("openai/gpt-4o-mini"),
+        "title-model": openrouter.chat("openai/gpt-4o-mini"),
+        // Artifact model - GPT-4o-mini for document generation
+        "artifact-model": openrouter.chat("openai/gpt-4o-mini"),
       },
     });

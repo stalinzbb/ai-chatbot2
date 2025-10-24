@@ -2,7 +2,11 @@
   "permissions": {
     "allow": [
       "Bash(pnpm run lint)",
-      "Bash(npx ultracite@latest fix:*)"
+      "Bash(npx ultracite@latest fix:*)",
+      "Bash(tree:*)",
+      "Bash(npx tsx scripts/discover-mcp-tools.ts)",
+      "WebSearch",
+      "Bash(pnpm add:*)"
     ],
     "deny": [],
     "ask": []
