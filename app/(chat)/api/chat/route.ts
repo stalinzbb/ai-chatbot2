@@ -23,9 +23,6 @@ import type { ChatModel } from "@/lib/ai/models";
 import { type RequestHints, systemPrompt } from "@/lib/ai/prompts";
 import { myProvider } from "@/lib/ai/providers";
 import { createDocument } from "@/lib/ai/tools/create-document";
-import { getDesignTokensTool } from "@/lib/ai/tools/get-design-tokens";
-import { getWeather } from "@/lib/ai/tools/get-weather";
-import { queryFigmaComponents } from "@/lib/ai/tools/query-figma-components";
 import { requestSuggestions } from "@/lib/ai/tools/request-suggestions";
 import { updateDocument } from "@/lib/ai/tools/update-document";
 import { isProductionEnvironment } from "@/lib/constants";
@@ -40,6 +37,14 @@ import {
   updateChatLastContextById,
 } from "@/lib/db/queries";
 import { ChatSDKError } from "@/lib/errors";
+// MCP Tools for Figma Desktop
+import {
+  getCodeConnectMap,
+  getDesignContext,
+  getMetadata,
+  getScreenshot,
+  getVariableDefs,
+} from "@/lib/mcp/tools";
 import type { ChatMessage } from "@/lib/types";
 import type { AppUsage } from "@/lib/usage";
 import { convertToUIMessages, generateUUID } from "@/lib/utils";
@@ -175,8 +180,16 @@ export async function POST(request: Request) {
 
     let finalMergedUsage: AppUsage | undefined;
 
+    console.log(
+      "[Chat API] Starting stream for chat:",
+      id,
+      "model:",
+      selectedChatModel
+    );
+
     const stream = createUIMessageStream({
       execute: ({ writer: dataStream }) => {
+        console.log("[Chat API] Executing streamText...");
         const result = streamText({
           model: myProvider.languageModel(selectedChatModel),
           system: systemPrompt({ selectedChatModel, requestHints }),
@@ -186,35 +199,45 @@ export async function POST(request: Request) {
             selectedChatModel === "chat-model-reasoning"
               ? []
               : [
-                  "getWeather",
                   "createDocument",
                   "updateDocument",
                   "requestSuggestions",
-                  "queryFigmaComponents",
-                  "getDesignTokensTool",
+                  "getDesignContext",
+                  "getVariableDefs",
+                  "getMetadata",
+                  "getScreenshot",
+                  "getCodeConnectMap",
                 ],
           experimental_transform: smoothStream({ chunking: "word" }),
           tools: {
-            getWeather,
             createDocument: createDocument({ session, dataStream }),
             updateDocument: updateDocument({ session, dataStream }),
             requestSuggestions: requestSuggestions({
               session,
               dataStream,
             }),
-            queryFigmaComponents,
-            getDesignTokensTool,
+            // MCP Tools for Figma Desktop
+            getDesignContext,
+            getVariableDefs,
+            getMetadata,
+            getScreenshot,
+            getCodeConnectMap,
           },
           experimental_telemetry: {
             isEnabled: isProductionEnvironment,
             functionId: "stream-text",
           },
           onFinish: async ({ usage }) => {
+            console.log(
+              "[Chat API] streamText onFinish called with usage:",
+              usage
+            );
             try {
               const providers = await getTokenlensCatalog();
               const modelId =
                 myProvider.languageModel(selectedChatModel).modelId;
               if (!modelId) {
+                console.log("[Chat API] No modelId found");
                 finalMergedUsage = usage;
                 dataStream.write({
                   type: "data-usage",
@@ -224,6 +247,7 @@ export async function POST(request: Request) {
               }
 
               if (!providers) {
+                console.log("[Chat API] No providers catalog");
                 finalMergedUsage = usage;
                 dataStream.write({
                   type: "data-usage",
@@ -234,6 +258,7 @@ export async function POST(request: Request) {
 
               const summary = getUsage({ modelId, usage, providers });
               finalMergedUsage = { ...usage, ...summary, modelId } as AppUsage;
+              console.log("[Chat API] Writing usage data");
               dataStream.write({ type: "data-usage", data: finalMergedUsage });
             } catch (err) {
               console.warn("TokenLens enrichment failed", err);
@@ -275,8 +300,9 @@ export async function POST(request: Request) {
           }
         }
       },
-      onError: () => {
-        return "Oops, an error occurred!";
+      onError: (error) => {
+        console.error("[Chat API] Stream error:", error);
+        return `Error: ${error instanceof Error ? error.message : "An error occurred"}`;
       },
     });
 

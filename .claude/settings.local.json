@@ -6,7 +6,15 @@
       "Bash(tree:*)",
       "Bash(npx tsx scripts/discover-mcp-tools.ts)",
       "WebSearch",
-      "Bash(pnpm add:*)"
+      "Bash(pnpm add:*)",
+      "Bash(npx tsx:*)",
+      "Bash(npx ultracite@latest fix:format)",
+      "Bash(if [ -z \"$OPENROUTER_API_KEY\" ])",
+      "Bash(then)",
+      "Bash(else)",
+      "Bash(fi)",
+      "Bash(pnpm db:push:*)",
+      "Bash(pnpm db:migrate:*)"
     ],
     "deny": [],
     "ask": []

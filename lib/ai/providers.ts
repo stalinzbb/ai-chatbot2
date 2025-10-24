@@ -14,15 +14,20 @@ const openrouter = createOpenAI({
     "HTTP-Referer": process.env.OPENROUTER_SITE_URL || "http://localhost:3000",
     "X-Title": "Double Good Design System Chat",
   },
-  fetch: async (input, init) => {
+  fetch: (input: RequestInfo | URL, init?: RequestInit) => {
     if (process.env.NODE_ENV !== "production" && typeof input === "string") {
       try {
         console.log("[openrouter] request", input, init?.body);
       } catch (error) {
-        console.log("[openrouter] request", input, "[unserializable body]", error);
+        console.log(
+          "[openrouter] request",
+          input,
+          "[unserializable body]",
+          error
+        );
       }
     }
-    return fetch(input, init);
+    return globalThis.fetch(input, init);
   },
 });
 

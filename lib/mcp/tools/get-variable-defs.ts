@@ -1,0 +1,62 @@
+/**
+ * MCP Tool: get_variable_defs
+ *
+ * Get design token/variable definitions from Figma
+ */
+
+import { tool } from "ai";
+import { z } from "zod";
+import { callMCPTool } from "../client";
+
+export const getVariableDefs = tool({
+  description: `Get design token and variable definitions from Figma including colors, spacing, and typography. Provide a nodeId in format "123:456" or it uses the currently selected node in Figma Desktop.`,
+
+  inputSchema: z.object({
+    nodeId: z
+      .string()
+      .optional()
+      .describe(
+        'The ID of the node in the Figma document (e.g., "123:456"). If not provided, uses currently selected node in Figma Desktop.'
+      ),
+    clientLanguages: z
+      .string()
+      .optional()
+      .default("react,typescript")
+      .describe("Comma-separated list of programming languages"),
+    clientFrameworks: z
+      .string()
+      .optional()
+      .default("react")
+      .describe("Comma-separated list of frameworks"),
+  }),
+
+  execute: async ({ nodeId, clientLanguages, clientFrameworks }) => {
+    try {
+      const args: Record<string, unknown> = {
+        clientLanguages: clientLanguages || "react,typescript",
+        clientFrameworks: clientFrameworks || "react",
+      };
+
+      if (nodeId) {
+        args.nodeId = nodeId;
+      }
+
+      const result = await callMCPTool("get_variable_defs", args);
+
+      return {
+        success: true,
+        variables: result.content,
+        nodeId: nodeId || "currently selected node",
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to get variable definitions from Figma MCP server",
+        hint: "Make sure Figma Desktop is running with the relevant file open.",
+      };
+    }
+  },
+});

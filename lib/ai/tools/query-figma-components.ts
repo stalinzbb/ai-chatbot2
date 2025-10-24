@@ -1,3 +1,13 @@
+/**
+ * @deprecated This tool uses Figma REST API and has been replaced by MCP tools.
+ * Use the following MCP tools instead:
+ * - getMetadata: To explore file structure and find components
+ * - getDesignContext: To get component details and code
+ * - getCodeConnectMap: To find component usage in codebase
+ *
+ * This file is kept for reference and potential fallback only.
+ */
+
 import { tool } from "ai";
 import { z } from "zod";
 import { searchComponents, getComponent } from "@/lib/figma/client";

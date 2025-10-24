@@ -1,3 +1,11 @@
+/**
+ * @deprecated This tool uses Figma REST API and has been replaced by MCP tools.
+ * Use the following MCP tool instead:
+ * - getVariableDefs: To get design token/variable definitions
+ *
+ * This file is kept for reference and potential fallback only.
+ */
+
 import { tool } from "ai";
 import { z } from "zod";
 import { getDesignTokens, searchDesignToken } from "@/lib/figma/client";
