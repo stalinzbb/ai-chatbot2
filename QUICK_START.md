@@ -148,15 +148,14 @@ Significantly improves performance!
 - Check Figma API limits
 
 **OpenRouter errors**
-- Verify API key is active
-- Check you have credits in account
-- Visit OpenRouter dashboard for details
+- Verify your API key is active and associated with an account that has credits (HTTP 402 means the balance is empty)
+- Visit the OpenRouter dashboard for detailed error logs
 
 ## 📚 More Help
 
-- **Full Setup:** See `SETUP.md`
-- **Implementation Details:** See `IMPLEMENTATION_SUMMARY.md`
-- **Code Structure:** Browse `lib/figma/` and `lib/ai/tools/`
+- **Full Setup & Troubleshooting:** See `SETUP.md`
+- **Current Project Status:** See `docs/PROJECT_STATUS.md`
+- **Code Structure:** Browse `lib/mcp/`, `lib/figma/`, and `lib/ai/tools/`
 
 ## 💰 Cost Estimate
 

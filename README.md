@@ -8,9 +8,8 @@
 </p>
 
 <p align="center">
-  <a href="QUICK_START.md"><strong>🚀 Quick Start</strong></a> ·
   <a href="SETUP.md"><strong>📖 Setup Guide</strong></a> ·
-  <a href="IMPLEMENTATION_SUMMARY.md"><strong>📋 Implementation Details</strong></a>
+  <a href="docs/PROJECT_STATUS.md"><strong>📊 Project Status</strong></a>
 </p>
 <br/>
 
@@ -38,6 +37,13 @@ This chatbot helps your team understand and use the Double Good Design System by
   <a href="#running-locally"><strong>Running locally</strong></a>
 </p>
 <br/>
+
+## Implementation Highlights
+
+- **OpenRouter integration** with Claude 3.5 Sonnet across chat, reasoning, and title flows (see `lib/ai/providers.ts`, `lib/ai/models.ts`).
+- **Figma MCP tooling** (`lib/mcp/tools/*`) plus the `listFileVariables` aggregator that blends MCP discovery with REST enrichment.
+- **Chat pipeline updates** in `app/(chat)/api/chat/route.ts`, including guest entitlements and billing-aware error handling.
+- **UI improvements** such as generic `tool-*` renderers in `components/message.tsx`.
 
 ## Features
 
@@ -91,9 +97,7 @@ You can deploy your own version of the Next.js AI Chatbot to Vercel with one cli
 
 ### Quick Setup:
 
-See **[QUICK_START.md](QUICK_START.md)** for a step-by-step guide (5 minutes)
-
-Or follow these steps:
+Follow these steps to get running quickly:
 
 1. **Configure environment variables** (create `.env.local`):
    ```bash
@@ -127,6 +131,7 @@ Or follow these steps:
    pnpm dev
    ```
 
-4. **Open** [localhost:3000](http://localhost:3000)
+4. **Ensure billing** – confirm the configured OpenRouter key has credits (test with `curl` as described in `SETUP.md`).
+5. **Open** [localhost:3000](http://localhost:3000) and authenticate (guest or account).
 
-For detailed setup instructions, see **[SETUP.md](SETUP.md)**
+For deeper setup details (database, MCP prerequisites, troubleshooting), see **[SETUP.md](SETUP.md)** and **[docs/PROJECT_STATUS.md](docs/PROJECT_STATUS.md)**.
