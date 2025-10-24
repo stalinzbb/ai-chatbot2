@@ -245,6 +245,45 @@ const PurePreviewMessage = ({
               );
             }
 
+            if (type?.startsWith("tool-")) {
+              const { toolCallId, state } = part;
+              const errorText =
+                ("errorText" in part && typeof part.errorText === "string"
+                  ? part.errorText
+                  : undefined) ??
+                ("error" in part && typeof part.error === "string"
+                  ? part.error
+                  : undefined);
+
+              const outputJson =
+                state === "output-available" && part.output
+                  ? JSON.stringify(part.output, null, 2)
+                  : undefined;
+
+              return (
+                <Tool defaultOpen={false} key={toolCallId}>
+                  <ToolHeader state={state} type={type} />
+                  <ToolContent>
+                    {state === "input-available" && (
+                      <ToolInput input={part.input} />
+                    )}
+                    {(errorText || outputJson) && (
+                      <ToolOutput
+                        errorText={errorText}
+                        output={
+                          outputJson ? (
+                            <pre className="whitespace-pre-wrap break-words text-xs">
+                              {outputJson}
+                            </pre>
+                          ) : undefined
+                        }
+                      />
+                    )}
+                  </ToolContent>
+                </Tool>
+              );
+            }
+
             return null;
           })}
 

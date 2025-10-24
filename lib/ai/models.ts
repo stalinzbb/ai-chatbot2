@@ -9,14 +9,14 @@ export type ChatModel = {
 export const chatModels: ChatModel[] = [
   {
     id: "chat-model",
-    name: "GPT-4o Mini",
+    name: "Claude 3.5 Sonnet",
     description:
-      "Fast and cost-effective AI assistant specialized in Design Systems and Figma components",
+      "Anthropic Claude 3.5 Sonnet for all chat interactions, optimized for Design System support",
   },
   {
     id: "chat-model-reasoning",
-    name: "GPT-4o Mini (Reasoning)",
+    name: "Claude 3.5 Sonnet (Reasoning)",
     description:
-      "Reasoning model for complex Design System architecture questions",
+      "Claude 3.5 Sonnet reasoning mode for complex Design System architecture questions",
   },
 ];

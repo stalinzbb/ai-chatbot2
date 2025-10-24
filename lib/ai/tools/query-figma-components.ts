@@ -10,7 +10,7 @@
 
 import { tool } from "ai";
 import { z } from "zod";
-import { searchComponents, getComponent } from "@/lib/figma/client";
+import { searchComponents } from "@/lib/figma/client";
 import { FIGMA_FILES } from "@/lib/figma/config";
 
 export const queryFigmaComponents = tool({
@@ -21,11 +21,15 @@ export const queryFigmaComponents = tool({
   inputSchema: z.object({
     query: z
       .string()
-      .describe("The component name or keyword to search for (e.g., 'button', 'navbar', 'avatar', 'card')"),
+      .describe(
+        "The component name or keyword to search for (e.g., 'button', 'navbar', 'avatar', 'card')"
+      ),
     platform: z
       .enum(["native", "web", "both"])
       .optional()
-      .describe("Filter by platform: 'native' for iOS/Android, 'web' for web components, or 'both' (default)"),
+      .describe(
+        "Filter by platform: 'native' for iOS/Android, 'web' for web components, or 'both' (default)"
+      ),
   }),
 
   execute: async ({ query, platform = "both" }) => {
@@ -35,12 +39,16 @@ export const queryFigmaComponents = tool({
 
       // Filter by platform if specified
       const filteredResults = results.filter((result) => {
-        if (platform === "both") return true;
+        if (platform === "both") {
+          return true;
+        }
 
         const isNative = result.fileId === FIGMA_FILES.NATIVE_COMPONENTS.id;
         const isWeb = result.fileId === FIGMA_FILES.WEB_COMPONENTS.id;
 
-        return (platform === "native" && isNative) || (platform === "web" && isWeb);
+        return (
+          (platform === "native" && isNative) || (platform === "web" && isWeb)
+        );
       });
 
       if (filteredResults.length === 0) {
@@ -59,9 +67,10 @@ export const queryFigmaComponents = tool({
       const formattedResults = filteredResults.map((file) => ({
         file: file.fileName,
         fileId: file.fileId,
-        platform: file.fileId === FIGMA_FILES.NATIVE_COMPONENTS.id
-          ? "Native (iOS/Android React Native)"
-          : "Web",
+        platform:
+          file.fileId === FIGMA_FILES.NATIVE_COMPONENTS.id
+            ? "Native (iOS/Android React Native)"
+            : "Web",
         componentsFound: file.components.length,
         components: file.components.map((component) => ({
           name: component.name,
@@ -70,20 +79,30 @@ export const queryFigmaComponents = tool({
         })),
       }));
 
+      const totalFound = formattedResults.reduce(
+        (acc, file) => acc + file.componentsFound,
+        0
+      );
+
       return {
         success: true,
         query,
         platform,
-        totalResults: filteredResults.reduce((acc, file) => acc + file.components.length, 0),
+        totalResults: filteredResults.reduce(
+          (acc, file) => acc + file.components.length,
+          0
+        ),
         results: formattedResults,
-        message: `Found ${formattedResults.reduce((acc, file) => acc + file.componentsFound, 0)} components matching "${query}"`,
+        message: `Found ${totalFound} components matching "${query}"`,
       };
     } catch (error) {
       console.error("Error querying Figma components:", error);
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Unknown error occurred",
-        message: "Failed to query Figma components. Please check your Figma API configuration.",
+        error:
+          error instanceof Error ? error.message : "Unknown error occurred",
+        message:
+          "Failed to query Figma components. Please check your Figma API configuration.",
       };
     }
   },

@@ -7,6 +7,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { callMCPTool } from "../client";
+import { cloneMCPContent } from "../utils";
 
 export const getCodeConnectMap = tool({
   description: `Get the mapping between Figma components and their code implementations showing where components are used in the codebase. Provide a nodeId in format "123:456" or it uses the currently selected node in Figma Desktop.`,
@@ -42,10 +43,11 @@ export const getCodeConnectMap = tool({
       }
 
       const result = await callMCPTool("get_code_connect_map", args);
+      const content = cloneMCPContent(result.content);
 
       return {
         success: true,
-        codeConnectMap: result.content,
+        codeConnectMap: content,
         nodeId: nodeId || "currently selected node",
       };
     } catch (error) {

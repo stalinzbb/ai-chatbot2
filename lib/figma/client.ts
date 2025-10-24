@@ -1,4 +1,4 @@
-import * as Figma from "figma-api";
+import { Api } from "figma-api";
 import type { Redis } from "redis";
 import { FIGMA_FILES, getFileInfoById } from "./config";
 
@@ -11,7 +11,7 @@ export const getFigmaClient = () => {
   if (!token) {
     throw new Error("FIGMA_ACCESS_TOKEN is not configured");
   }
-  return new Figma.Api({ personalAccessToken: token });
+  return new Api({ personalAccessToken: token });
 };
 
 // Initialize Redis client for caching (optional)
@@ -68,13 +68,13 @@ async function withCache<T>(
 }
 
 // Fetch file metadata
-export async function getFileInfo(fileId: string) {
+export function getFileInfo(fileId: string) {
   const client = getFigmaClient();
   return withCache(`figma:file:${fileId}`, () => client.getFile(fileId));
 }
 
 // Fetch file components
-export async function getFileComponents(fileId: string) {
+export function getFileComponents(fileId: string) {
   const client = getFigmaClient();
   return withCache(`figma:components:${fileId}`, () =>
     client.getFileComponents(fileId)
@@ -82,15 +82,20 @@ export async function getFileComponents(fileId: string) {
 }
 
 // Fetch file styles (for tokens)
-export async function getFileStyles(fileId: string) {
+export function getFileStyles(fileId: string) {
   const client = getFigmaClient();
   return withCache(`figma:styles:${fileId}`, () =>
     client.getFileStyles(fileId)
   );
 }
 
+export async function getFileVariables(fileId: string) {
+  const fileData = await getFileInfo(fileId);
+  return extractVariablesFromFile(fileData);
+}
+
 // Fetch component details
-export async function getComponent(fileId: string, nodeId: string) {
+export function getComponent(fileId: string, nodeId: string) {
   const client = getFigmaClient();
   return withCache(`figma:node:${fileId}:${nodeId}`, () =>
     client.getFileNodes(fileId, [nodeId])
@@ -165,7 +170,7 @@ export async function getDesignTokens() {
 }
 
 // Extract variables from file (simplified - Figma API has complex variable structure)
-function extractVariablesFromFile(fileData: any) {
+export function extractVariablesFromFile(fileData: any) {
   // This is a simplified version - you may need to adjust based on actual Figma API response
   const variables: any[] = [];
 

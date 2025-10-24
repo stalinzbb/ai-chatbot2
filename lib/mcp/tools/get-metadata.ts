@@ -7,6 +7,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { callMCPTool } from "../client";
+import { cloneMCPContent } from "../utils";
 
 export const getMetadata = tool({
   description: `Get structural metadata for a Figma page or node in XML format with node IDs, layer types, and names. Provide a page ID like "0:1" or component nodeId, or it uses the currently selected node in Figma Desktop.`,
@@ -42,10 +43,11 @@ export const getMetadata = tool({
       }
 
       const result = await callMCPTool("get_metadata", args);
+      const content = cloneMCPContent(result.content);
 
       return {
         success: true,
-        metadata: result.content,
+        metadata: content,
         nodeId: nodeId || "currently selected node",
         hint: "Use the node IDs from this metadata to call get_design_context for detailed information about specific components.",
       };

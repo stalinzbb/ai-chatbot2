@@ -44,6 +44,7 @@ import {
   getMetadata,
   getScreenshot,
   getVariableDefs,
+  listFileVariables,
 } from "@/lib/mcp/tools";
 import type { ChatMessage } from "@/lib/types";
 import type { AppUsage } from "@/lib/usage";
@@ -207,6 +208,7 @@ export async function POST(request: Request) {
                   "getMetadata",
                   "getScreenshot",
                   "getCodeConnectMap",
+                  "listFileVariables",
                 ],
           experimental_transform: smoothStream({ chunking: "word" }),
           tools: {
@@ -222,6 +224,7 @@ export async function POST(request: Request) {
             getMetadata,
             getScreenshot,
             getCodeConnectMap,
+            listFileVariables,
           },
           experimental_telemetry: {
             isEnabled: isProductionEnvironment,

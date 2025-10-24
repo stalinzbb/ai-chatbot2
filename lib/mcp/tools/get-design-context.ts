@@ -7,6 +7,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { callMCPTool } from "../client";
+import { cloneMCPContent } from "../utils";
 
 export const getDesignContext = tool({
   description: `Generate UI code and design context for a Figma component/node. Use this when user asks about component implementation details or wants to see code for a Figma design. You can provide a nodeId in format "123:456" or extract from Figma URLs. If no nodeId is provided, it uses the currently selected node in Figma Desktop.`,
@@ -52,10 +53,11 @@ export const getDesignContext = tool({
       }
 
       const result = await callMCPTool("get_design_context", args);
+      const content = cloneMCPContent(result.content);
 
       return {
         success: true,
-        data: result.content,
+        data: content,
         nodeId: nodeId || "currently selected node",
       };
     } catch (error) {

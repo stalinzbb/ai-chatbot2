@@ -7,6 +7,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { callMCPTool } from "../client";
+import { cloneMCPContent } from "../utils";
 
 export const getVariableDefs = tool({
   description: `Get design token and variable definitions from Figma including colors, spacing, and typography. Provide a nodeId in format "123:456" or it uses the currently selected node in Figma Desktop.`,
@@ -42,10 +43,11 @@ export const getVariableDefs = tool({
       }
 
       const result = await callMCPTool("get_variable_defs", args);
+      const content = cloneMCPContent(result.content);
 
       return {
         success: true,
-        variables: result.content,
+        variables: content,
         nodeId: nodeId || "currently selected node",
       };
     } catch (error) {

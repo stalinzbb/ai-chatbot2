@@ -7,6 +7,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { callMCPTool } from "../client";
+import { cloneMCPContent } from "../utils";
 
 export const getScreenshot = tool({
   description: `Generate a screenshot or visual image of a Figma component or node. Provide a nodeId in format "123:456" or it uses the currently selected node in Figma Desktop.`,
@@ -42,10 +43,11 @@ export const getScreenshot = tool({
       }
 
       const result = await callMCPTool("get_screenshot", args);
+      const content = cloneMCPContent(result.content);
 
       return {
         success: true,
-        screenshot: result.content,
+        screenshot: content,
         nodeId: nodeId || "currently selected node",
       };
     } catch (error) {

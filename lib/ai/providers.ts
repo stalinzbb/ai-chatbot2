@@ -50,16 +50,16 @@ export const myProvider = isTestEnvironment
     })()
   : customProvider({
       languageModels: {
-        // Main chat model - GPT-4o-mini for general chat handling
-        "chat-model": openrouter.chat("openai/gpt-4o-mini"),
+        // Main chat model - Claude 3.5 Sonnet for general chat handling
+        "chat-model": openrouter.chat("anthropic/claude-3.5-sonnet"),
         // Reasoning model - runs through the same model but with reasoning middleware
         "chat-model-reasoning": wrapLanguageModel({
-          model: openrouter.chat("openai/gpt-4o-mini"),
+          model: openrouter.chat("anthropic/claude-3.5-sonnet"),
           middleware: extractReasoningMiddleware({ tagName: "think" }),
         }),
-        // Title model - GPT-4o-mini for cost-effective title generation
-        "title-model": openrouter.chat("openai/gpt-4o-mini"),
-        // Artifact model - GPT-4o-mini for document generation
-        "artifact-model": openrouter.chat("openai/gpt-4o-mini"),
+        // Title model - Claude 3.5 Sonnet for consistent summaries
+        "title-model": openrouter.chat("anthropic/claude-3.5-sonnet"),
+        // Artifact model - Claude 3.5 Sonnet for document generation
+        "artifact-model": openrouter.chat("anthropic/claude-3.5-sonnet"),
       },
     });
