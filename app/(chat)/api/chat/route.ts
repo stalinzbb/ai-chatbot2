@@ -23,6 +23,7 @@ import type { ChatModel } from "@/lib/ai/models";
 import { type RequestHints, systemPrompt } from "@/lib/ai/prompts";
 import { myProvider } from "@/lib/ai/providers";
 import { createDocument } from "@/lib/ai/tools/create-document";
+import { queryFigmaComponents } from "@/lib/ai/tools/query-figma-components";
 import { requestSuggestions } from "@/lib/ai/tools/request-suggestions";
 import { updateDocument } from "@/lib/ai/tools/update-document";
 import { isProductionEnvironment } from "@/lib/constants";
@@ -226,6 +227,7 @@ export async function POST(request: Request) {
                   "getScreenshot",
                   "getCodeConnectMap",
                   "listFileVariables",
+                  "queryFigmaComponents",
                 ],
           experimental_transform: smoothStream({ chunking: "word" }),
           tools: {
@@ -242,6 +244,7 @@ export async function POST(request: Request) {
             getScreenshot,
             getCodeConnectMap,
             listFileVariables,
+            queryFigmaComponents,
           },
           experimental_telemetry: {
             isEnabled: isProductionEnvironment,

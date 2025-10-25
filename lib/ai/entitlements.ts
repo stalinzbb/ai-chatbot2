@@ -1,5 +1,6 @@
 import type { UserType } from "@/app/(auth)/auth";
 import type { ChatModel } from "./models";
+import { CHAT_MODEL_IDS } from "./models";
 
 type Entitlements = {
   maxMessagesPerDay: number;
@@ -12,7 +13,7 @@ export const entitlementsByUserType: Record<UserType, Entitlements> = {
    */
   guest: {
     maxMessagesPerDay: 200,
-    availableChatModelIds: ["chat-model", "chat-model-reasoning"],
+    availableChatModelIds: [...CHAT_MODEL_IDS],
   },
 
   /*
@@ -20,7 +21,7 @@ export const entitlementsByUserType: Record<UserType, Entitlements> = {
    */
   regular: {
     maxMessagesPerDay: 200,
-    availableChatModelIds: ["chat-model", "chat-model-reasoning"],
+    availableChatModelIds: [...CHAT_MODEL_IDS],
   },
 
   /*

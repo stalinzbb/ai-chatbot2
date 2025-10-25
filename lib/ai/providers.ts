@@ -5,6 +5,7 @@ import {
   wrapLanguageModel,
 } from "ai";
 import { isTestEnvironment } from "../constants";
+import { chatModels } from "./models";
 
 // Configure OpenRouter as a provider
 const openrouter = createOpenAI({
@@ -31,35 +32,64 @@ const openrouter = createOpenAI({
   },
 });
 
-export const myProvider = isTestEnvironment
-  ? (() => {
-      const {
-        artifactModel,
-        chatModel,
-        reasoningModel,
-        titleModel,
-      } = require("./models.mock");
-      return customProvider({
-        languageModels: {
-          "chat-model": chatModel,
-          "chat-model-reasoning": reasoningModel,
-          "title-model": titleModel,
-          "artifact-model": artifactModel,
-        },
-      });
-    })()
-  : customProvider({
-      languageModels: {
-        // Main chat model - GLM 4.6 for general chat handling
-        "chat-model": openrouter.chat("z-ai/glm-4.6"),
-        // Reasoning model - runs through the same model but with reasoning middleware
-        "chat-model-reasoning": wrapLanguageModel({
-          model: openrouter.chat("z-ai/glm-4.6"),
+const buildTestLanguageModels = () => {
+  const {
+    artifactModel,
+    chatModel,
+    reasoningModel,
+    titleModel,
+  } = require("./models.mock");
+
+  const languageModels: Record<string, unknown> = Object.fromEntries(
+    chatModels.map((model) => [
+      model.id,
+      model.supportsReasoning ? reasoningModel : chatModel,
+    ])
+  );
+
+  languageModels["title-model"] = titleModel;
+  languageModels["artifact-model"] = artifactModel;
+
+  return languageModels;
+};
+
+const buildProductionLanguageModels = () => {
+  const cache = new Map<string, ReturnType<typeof openrouter.chat>>();
+
+  const getModel = (providerModelId: string) => {
+    const cached = cache.get(providerModelId);
+    if (cached) {
+      return cached;
+    }
+    const created = openrouter.chat(providerModelId);
+    cache.set(providerModelId, created);
+    return created;
+  };
+
+  const entries = chatModels.map((model) => {
+    const baseModel = getModel(model.providerModelId);
+    if (model.supportsReasoning) {
+      return [
+        model.id,
+        wrapLanguageModel({
+          model: baseModel,
           middleware: extractReasoningMiddleware({ tagName: "think" }),
         }),
-        // Title model - GLM 4.6 for consistent summaries
-        "title-model": openrouter.chat("z-ai/glm-4.6"),
-        // Artifact model - GLM 4.6 for document generation
-        "artifact-model": openrouter.chat("z-ai/glm-4.6"),
-      },
-    });
+      ] as const;
+    }
+    return [model.id, baseModel] as const;
+  });
+
+  const defaultModel = getModel("openai/gpt-4o-mini");
+
+  entries.push(["title-model", defaultModel] as const);
+  entries.push(["artifact-model", defaultModel] as const);
+
+  return Object.fromEntries(entries);
+};
+
+export const myProvider = customProvider({
+  languageModels: isTestEnvironment
+    ? buildTestLanguageModels()
+    : buildProductionLanguageModels(),
+});
