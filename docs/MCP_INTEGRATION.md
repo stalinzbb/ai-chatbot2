@@ -1,3 +1,117 @@
+# Figma MCP Integration – Reference Guide
+
+## Overview
+
+The chatbot relies on the **Figma Desktop MCP server** (`http://127.0.0.1:3845/mcp`) as its primary design data source. To cover gaps that MCP cannot address (e.g., enumerating every token in a file), we layer in a lightweight Figma REST fallback that only activates when a `fileId` is explicitly provided. All tooling is surfaced to the LLM through the Vercel AI SDK with `inputSchema` definitions compatible with OpenRouter’s Claude 3.5 Sonnet models.
+
+---
+
+## Module Layout (`/lib/mcp/`)
+
+- `client.ts` – Singleton MCP client with connection pooling, timeouts, and graceful shutdown.
+- `tools/` – Collection of MCP wrappers and the REST-enhanced aggregator:
+  - `get-design-context.ts`
+  - `get-variable-defs.ts`
+  - `get-metadata.ts`
+  - `get-screenshot.ts`
+  - `get-code-connect-map.ts`
+  - `list-file-variables.ts` *(hybrid MCP + REST)*
+- `utils.ts` – Helpers for deep-cloning MCP responses, parsing XML metadata, and normalising output before it reaches the model.
+
+Deprecated REST-only tools (`lib/ai/tools/query-figma-components.ts`, `lib/ai/tools/get-design-tokens.ts`) remain for reference but are no longer wired into the chat workflow.
+
+---
+
+## Integration Points
+
+| Location | Responsibility |
+| --- | --- |
+| `app/(chat)/api/chat/route.ts` | Registers MCP tools + aggregator, handles OpenRouter errors (e.g., 402 insufficient credits), and streams responses to the UI. |
+| `lib/ai/prompts.ts` | Guides the LLM on when to call each tool and how to interpret outputs (including aggregator datasets). |
+| `components/message.tsx` | Renders generic `tool-*` outputs, screenshots, and structured JSON results in expandable panels. |
+| `.env.local` | Hosts all secrets: `OPENROUTER_API_KEY`, `FIGMA_MCP_SERVER_URL`, `FIGMA_ACCESS_TOKEN`, and file IDs used by the aggregator. |
+
+---
+
+## Environment & Prerequisites
+
+1. **Figma Desktop** must be running with the relevant file open.
+2. **MCP server** must be enabled in Figma Desktop (Settings → Advanced → Model Context Protocol).
+3. **Figma PAT** (`FIGMA_ACCESS_TOKEN`) is required for the REST fallback used by `listFileVariables`.
+4. **OpenRouter API key** must belong to an account with credits; otherwise every request returns HTTP 402.
+
+For full setup instructions, see `SETUP.md` (env configuration) and `docs/PROJECT_STATUS.md` (current operational status / known issues).
+
+---
+
+## Tool Catalogue
+
+### Core MCP Wrappers
+
+All wrappers accept `nodeId?`, `clientLanguages?`, and `clientFrameworks?`. If `nodeId` is omitted, MCP uses the currently selected node in Figma Desktop.
+
+| Tool | Description | Typical Question |
+| --- | --- | --- |
+| `getDesignContext` | Returns implementation details and generated UI code for a component. | “Show me the code for the primary button.” |
+| `getVariableDefs` | Fetches design tokens/variables associated with a node/page. | “What tokens are applied to this component?” |
+| `getMetadata` | Produces XML describing the page/node hierarchy. | “What components exist in the Web Master file?” |
+| `getScreenshot` | Captures a PNG screenshot of the node. | “What does the checkout header look like?” |
+| `getCodeConnectMap` | Surfaces Code Connect mappings for the node. | “Where is this component implemented in code?” |
+
+### Hybrid Aggregator – `listFileVariables`
+
+**Purpose:** Combine MCP discovery with REST endpoints (`getFileVariables`, `getFileComponents`, `getFileStyles`) to enumerate tokens, styles, and components without manual node selection.
+
+**Key Inputs:**
+- `fileId` (optional but highly recommended) – unlocks REST enrichment.
+- `includeVariables`, `includeComponents`, `includeStyles` – toggles sections of the response.
+- `pageNameFilter`, `maxResultsPerSection`, etc. – fine-grained filters (see source file for full schema).
+
+**Output:** Structured JSON that groups results by collection/page and annotates which data originated from MCP versus REST.
+
+---
+
+## Working with Node IDs
+
+- **From the Figma URL:** `https://www.figma.com/file/<fileKey>/<fileName>?node-id=1-2` → Node ID `1:2`.
+- **Via `getMetadata`:** Inspect the XML tree to map friendly names to IDs.
+- **Via Selection:** Select the layer in Figma Desktop before calling the tool (works when `nodeId` is omitted).
+
+---
+
+## Example Workflows
+
+### “Where is Button/Primary used in the Web Master file?”
+1. `getMetadata({ nodeId: "0:1" })` → find the `Button/Primary` node ID in the XML output.
+2. `getCodeConnectMap({ nodeId })` → retrieve Code Connect mappings.
+3. `getDesignContext({ nodeId })` → provide implementation details in the response.
+
+### “List every token in the Product Tokens file.”
+1. `listFileVariables({ fileId: env.FIGMA_PRODUCT_TOKENS_FILE_ID, includeVariables: true })`.
+2. Encourage the user to open the file in Figma Desktop if MCP returns empty results.
+
+### “Capture a screenshot of the native checkout header.”
+1. `getScreenshot({ nodeId: "321:654" })` → stream PNG content back to the chat UI.
+
+---
+
+## Troubleshooting
+
+| Symptom | Likely Cause | Mitigation |
+| --- | --- | --- |
+| MCP tools return empty results | Target file not open in Figma Desktop or incorrect node selected. | Prompt user to open the file / supply explicit `nodeId`. |
+| `listFileVariables` missing data | No `fileId` provided or Figma PAT lacks access. | Provide `fileId`, verify PAT permissions. |
+| Chat shows “We’re having trouble sending…” | OpenRouter returned 402 (insufficient credits). | Add credits or switch to test provider for local development. |
+| XML parsing errors | Figma returned large metadata payload. | Narrow the scope (`pageNameFilter`) or fetch specific nodes. |
+
+---
+
+## Next Steps / Enhancements
+
+- Automate detection when Figma Desktop is not reachable and surface a user-friendly prompt.
+- Cache REST responses (Redis) to minimise repeated `listFileVariables` calls.
+- Add integration tests that mock MCP + REST responses to guard against schema regressions.
+- Explore additional MCP tooling (e.g., semantic search) once billing and availability are stable.
 # Figma MCP Integration - Complete Guide
 
 ## 🎉 Overview

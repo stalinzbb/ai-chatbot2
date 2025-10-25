@@ -14,7 +14,9 @@
       "Bash(else)",
       "Bash(fi)",
       "Bash(pnpm db:push:*)",
-      "Bash(pnpm db:migrate:*)"
+      "Bash(pnpm db:migrate:*)",
+      "Bash(cat:*)",
+      "Bash(git check-ignore:*)"
     ],
     "deny": [],
     "ask": []

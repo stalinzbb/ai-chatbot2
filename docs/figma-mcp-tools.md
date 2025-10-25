@@ -1,194 +1,81 @@
-# Figma Desktop MCP Server Tools
+# Figma MCP Tools & Aggregators
 
-This document describes the 7 tools available from the Figma Desktop MCP server running at `http://127.0.0.1:3845/mcp`.
-
-**Connection Method:** StreamableHTTP transport
-**SDK:** `@modelcontextprotocol/sdk`
+This note documents the Figma Desktop MCP tools we wrap inside the chatbot (running at `http://127.0.0.1:3845/mcp`). These wrappers convert MCP responses into the Vercel AI SDK `inputSchema` format and add a hybrid aggregator to fill coverage gaps that MCP alone cannot provide.
 
 ---
 
-## Available Tools
+## Core MCP Tools
 
-### 1. `get_design_context`
+All core tools accept the same optional parameters:
+- `nodeId?: string` — Figma node identifier (`123:456`). If omitted, the currently selected node in Figma Desktop is used.
+- `clientLanguages?: string` — Comma-separated hints for code generation (defaults to `react,typescript`).
+- `clientFrameworks?: string` — Comma-separated framework hints (defaults to `react`).
+- `forceCode?: boolean` — Supported by `get_design_context` only; forces code output even when large.
 
-**Description:** Generate UI code for a given node or the currently selected node in the Figma desktop app.
+| Tool | Purpose | Typical Usage |
+| --- | --- | --- |
+| `get_design_context` | Returns implementation details and generated UI code for a component node. | “Show the code for the primary button.” |
+| `get_variable_defs` | Fetches design variables/tokens associated with a node or page. | “List the tokens applied to this component.” |
+| `get_metadata` | Produces XML describing the current page/node hierarchy. | “What components exist in the Web Master file?” |
+| `get_screenshot` | Captures a PNG screenshot of the node. | “Show me what the checkout header looks like.” |
+| `get_code_connect_map` | Surfaces Code Connect mappings for the node. | “Where is this component implemented in code?” |
 
-**Use Cases:**
-- Get UI code for specific components
-- Extract design implementation details
-- Generate code from Figma designs
-
-**Parameters:**
-- `nodeId` (optional, string): The ID of the node in the Figma document, eg. "123:456" or "123-456"
-  - Pattern: `^$|^(?:-?\d+[:-]-?\d+)$`
-  - Can extract from URL: `https://figma.com/design/:fileKey/:fileName?node-id=1-2` → `1:2`
-  - If not provided, uses currently selected node in Figma Desktop
-- `clientLanguages` (optional, string): Comma-separated list of programming languages (e.g., "javascript", "html,css,typescript")
-- `clientFrameworks` (optional, string): Comma-separated list of frameworks (e.g., "react", "vue", "django")
-- `forceCode` (optional, boolean): Force code return even if output size is too large
-
-**Example Response:** UI code for the specified node
+> 📌 **Node IDs**: Extract them from the Figma URL (`…?node-id=1-2` ⇒ `1:2`), from `get_metadata`, or by selecting the node directly in Figma Desktop before invoking the tool.
 
 ---
 
-### 2. `get_variable_defs`
+## Hybrid Aggregator (`list_file_variables`)
 
-**Description:** Get variable definitions for a given node id. Returns design tokens/variables like colors, fonts, sizes, and spacings.
+Location: `lib/mcp/tools/list-file-variables.ts`
 
-**Use Cases:**
-- Fetch design tokens
-- Get color/spacing/typography values
-- Understand variable usage in components
+The aggregator orchestrates both MCP and REST endpoints to generate richer listings when a `fileId` is available:
 
-**Parameters:**
-- `nodeId` (optional, string): The ID of the node in the Figma document
-  - Pattern: `^$|^(?:-?\d+[:-]-?\d+)$`
-  - Can extract from URL
-  - If not provided, uses currently selected node
-- `clientLanguages` (optional, string): Comma-separated list of programming languages
-- `clientFrameworks` (optional, string): Comma-separated list of frameworks
+1. Calls `get_metadata` via MCP to understand the file structure and derive relevant node IDs.
+2. Invokes MCP variable/details tools for context.
+3. Supplements the result with REST calls (`getFileVariables`, `getFileComponents`, `getFileStyles`) to enumerate tokens, variables, and component summaries without requiring manual node selection.
 
-**Example Response:**
-```json
-{
-  "icon/default/secondary": "#949494",
-  "spacing/2x": "16px",
-  "font/heading/large": "32px"
-}
-```
+**Inputs:**
+- `fileId` (optional but recommended): Enables REST enrichment when provided.
+- `pageNameFilter`, `includeComponents`, `includeVariables`, etc. — fine-grained filters (see source for complete schema).
+
+**Outputs:**
+- Structured JSON grouping variables, styles, and components by collection/page.
+- Diagnostic metadata explaining which sources (MCP vs REST) contributed to the payload.
+
+> ℹ️ When `fileId` is omitted, the tool still returns MCP-derived information but cannot fall back to REST enrichment.
 
 ---
 
-### 3. `get_code_connect_map`
+## Operational Checklist
 
-**Description:** Get a mapping of node IDs to their code implementations (Code Connect mappings).
-
-**Use Cases:**
-- Find which code components map to Figma components
-- Get GitHub/codebase links for components
-- Understand component implementation locations
-
-**Parameters:**
-- `nodeId` (optional, string): The ID of the node in the Figma document
-  - Pattern: `^$|^(?:-?\d+[:-]-?\d+)$`
-  - Can extract from URL
-  - If not provided, uses currently selected node
-- `clientLanguages` (optional, string): Comma-separated list of programming languages
-- `clientFrameworks` (optional, string): Comma-separated list of frameworks
-
-**Example Response:**
-```json
-{
-  "1:2": {
-    "codeConnectSrc": "https://github.com/foo/components/Button.tsx",
-    "codeConnectName": "Button"
-  }
-}
-```
+1. **Figma Desktop Running** – The relevant design file must be open when you call MCP tools; otherwise responses are empty.
+2. **MCP Server Enabled** – Ensure the “Model Context Protocol” option is enabled inside Figma Desktop (Settings → Advanced).
+3. **Node Selection** – For node-specific calls, select the layer in Figma or pass a `nodeId` explicitly.
+4. **OpenRouter Credits** – The chatbot relies on OpenRouter; make sure the configured API key belongs to an account with available credits to avoid 402 errors.
 
 ---
 
-### 4. `get_screenshot`
+## Example Flows
 
-**Description:** Generate a screenshot for a given node or the currently selected node in the Figma desktop app.
+### A. “Where is Button/Primary used in the Web Master file?”
+1. `get_metadata({ nodeId: "0:1" })` → Inspect XML and locate the `Button/Primary` node ID.
+2. `get_code_connect_map({ nodeId: "456:789" })` → Returns Code Connect mappings.
+3. (Optional) `get_design_context({ nodeId: "456:789" })` → Retrieves detailed implementation guidance.
 
-**Use Cases:**
-- Get visual representation of a component
-- Capture current design state
-- Generate images for documentation
+### B. “List every token in the Product Tokens file.”
+1. `list_file_variables({ fileId: FIGMA_PRODUCT_TOKENS_FILE_ID, includeVariables: true })` → Returns combined MCP + REST dataset.
+2. If the file is not open locally, prompt the user to open it in Figma Desktop or retry once it is active.
 
-**Parameters:**
-- `nodeId` (optional, string): The ID of the node in the Figma document
-  - Pattern: `^$|^(?:-?\d+[:-]-?\d+)$`
-  - Can extract from URL
-  - If not provided, uses currently selected node
-- `clientLanguages` (optional, string): Comma-separated list of programming languages
-- `clientFrameworks` (optional, string): Comma-separated list of frameworks
-
-**Example Response:** Image/screenshot of the node
+### C. “Capture a screenshot of the native checkout header.”
+1. `get_screenshot({ nodeId: "321:654" })` → Streams a base64 PNG for display inside the chat UI.
 
 ---
 
-### 5. `get_metadata`
+## Integration Notes
 
-**Description:** Get metadata for a node or page in the Figma desktop app in XML format.
+- MCP wrappers live in `lib/mcp/tools/` and are exported via `lib/mcp/tools/index.ts`.
+- The chat API (`app/(chat)/api/chat/route.ts`) registers these tools and exposes them through the Vercel AI SDK.
+- Prompt guidance in `lib/ai/prompts.ts` teaches the model when to call each tool (including the aggregator).
+- `lib/mcp/utils.ts` contains helpers (`cloneMCPContent`, XML parsers) used by the wrappers to normalize responses before they reach the model.
 
-**Important:** Always prefer to use `get_design_context` tool. This is only useful for getting an overview of the structure.
-
-**Use Cases:**
-- Get overview of page/file structure
-- Find node IDs for specific elements
-- Understand layer hierarchy
-
-**Parameters:**
-- `nodeId` (optional, string): The ID of the node in the Figma document
-  - Can be a page id (e.g., "0:1")
-  - Pattern: `^$|^(?:-?\d+[:-]-?\d+)$`
-  - Can extract from URL
-  - If not provided, uses currently selected node
-- `clientLanguages` (optional, string): Comma-separated list of programming languages
-- `clientFrameworks` (optional, string): Comma-separated list of frameworks
-
-**Example Response:** XML format with node IDs, layer types, names, positions, and sizes
-
----
-
-### 6. `add_code_connect_map`
-
-**Description:** Map the currently selected Figma node (or a node specified by nodeId) to a code component in your codebase using Code Connect.
-
-**Use Cases:**
-- Create connections between Figma designs and code
-- Document component implementations
-- Link Figma components to GitHub
-
-**Parameters:**
-- `source` (**required**, string): The location of the component in the source code
-- `componentName` (**required**, string): The name of the component to map to in the source code
-- `nodeId` (optional, string): The ID of the node in the Figma document
-  - Pattern: `^$|^(?:-?\d+[:-]-?\d+)$`
-  - If not provided, uses currently selected node
-- `clientLanguages` (optional, string): Comma-separated list of programming languages
-- `clientFrameworks` (optional, string): Comma-separated list of frameworks
-
----
-
-### 7. `create_design_system_rules`
-
-**Description:** Provides a prompt to generate design system rules for this repo.
-
-**Use Cases:**
-- Generate design system documentation
-- Create design guidelines
-- Establish design rules for the project
-
-**Parameters:**
-- `clientLanguages` (optional, string): Comma-separated list of programming languages
-- `clientFrameworks` (optional, string): Comma-separated list of frameworks
-
----
-
-## How These Tools Map to Your Use Case
-
-For your chatbot that needs to answer questions like **"Where is Button/Primary used in the Web Master file?"**, you would use:
-
-1. **`get_metadata`** - First, get the structure of the "Web Master file" to find all node IDs
-2. **`get_design_context`** - Then, get detailed information about specific components/nodes
-3. **`get_variable_defs`** - Get design token information if needed
-4. **`get_code_connect_map`** - Find where components are used in the codebase
-
-**Key Limitation:** These tools work on **node IDs**, not file IDs. You'll need to:
-- Know which Figma file is currently open in Figma Desktop
-- Or extract node IDs from Figma URLs
-- The tools primarily work with the **currently active file in Figma Desktop**
-
-This means the MCP server expects the user to have the relevant Figma file open in Figma Desktop when making queries.
-
----
-
-## Next Steps for Integration
-
-1. Create MCP client wrapper in your chatbot
-2. Map these 7 MCP tools to Vercel AI SDK `tool()` format
-3. Add logic to handle file context (which Figma file to query)
-4. Replace existing Figma REST API tools with MCP tools
+For additional architecture context, refer to `SETUP.md` (environment setup) and `docs/PROJECT_STATUS.md` (current operational status).

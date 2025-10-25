@@ -88,16 +88,9 @@ And the chatbot should:
 ### 3. **Environment Configuration**
 **Status:** ✅ Complete
 
-**`.env.local` Configuration (placeholders only):**
-```bash
-AUTH_SECRET=<generate_with_openssl>
-OPENROUTER_API_KEY=<your_openrouter_api_key>
-OPENROUTER_SITE_URL=http://localhost:3000
-FIGMA_ACCESS_TOKEN=<your_figma_pat>
-FIGMA_MCP_SERVER_URL=http://127.0.0.1:3845/mcp
-POSTGRES_URL=<postgres_connection_string>
-REDIS_URL=<optional_redis_connection>
-```
+- All sensitive values now live in `.env.local` (see `SETUP.md` for the full key list and placeholders).
+- OpenRouter requires an API key tied to an account with credits.
+- Figma MCP server URL defaults to `http://127.0.0.1:3845/mcp` while running the desktop app.
 
 ### 4. **Database Setup**
 **Status:** ✅ Migrations Run
@@ -215,10 +208,8 @@ Result: Connection and tool calls working
 ```
 
 ### 2. OpenRouter API Testing
-```bash
-✅ curl -X POST https://openrouter.ai/api/v1/chat/completions
-Result: API key valid, simple requests work
-```
+- Verified basic requests against `https://openrouter.ai/api/v1/chat/completions` using a local REST client.
+- Confirmed the key is structurally valid (authentication succeeds prior to the billing check).
 
 ### 3. Database Testing
 ```bash
