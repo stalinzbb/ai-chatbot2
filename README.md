@@ -44,6 +44,7 @@ This chatbot helps your team understand and use the Double Good Design System by
 - **Figma MCP tooling** (`lib/mcp/tools/*`) plus the `listFileVariables` aggregator that blends MCP discovery with REST enrichment.
 - **Chat pipeline updates** in `app/(chat)/api/chat/route.ts`, including guest entitlements and billing-aware error handling.
 - **UI improvements** such as generic `tool-*` renderers in `components/message.tsx`.
+- **Request timeout handling** (30s) prevents the chat UI from getting stuck when requests fail or hang.
 
 ## Features
 

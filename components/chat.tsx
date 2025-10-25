@@ -63,6 +63,8 @@ export function Chat({
   const [showCreditCardAlert, setShowCreditCardAlert] = useState(false);
   const [currentModelId, setCurrentModelId] = useState(initialChatModel);
   const currentModelIdRef = useRef(currentModelId);
+  const requestTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [cooldownEndTime, setCooldownEndTime] = useState<number | null>(null);
 
   useEffect(() => {
     currentModelIdRef.current = currentModelId;
@@ -106,8 +108,27 @@ export function Chat({
       mutate(unstable_serialize(getChatHistoryPaginationKey));
     },
     onError: (error) => {
+      // Force stop to reset status to "ready"
+      stop();
+
+      const COOLDOWN_MS = 5_000; // 5 second cooldown
+      const cooldownEnd = Date.now() + COOLDOWN_MS;
+      setCooldownEndTime(cooldownEnd);
+
+      // Add error message to chat
+      const errorMessage: ChatMessage = {
+        id: generateUUID(),
+        role: "assistant",
+        parts: [
+          {
+            type: "text",
+            text: `❌ **Error: ${error.message || "Request failed"}**\n\nPlease wait 5 seconds before trying again.`,
+          },
+        ],
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+
       if (error instanceof ChatSDKError) {
-        // Check if it's a credit card error
         if (
           error.message?.includes("AI Gateway requires a valid credit card")
         ) {
@@ -118,7 +139,17 @@ export function Chat({
             description: error.message,
           });
         }
+      } else {
+        toast({
+          type: "error",
+          description: error.message || "An error occurred. Please wait 5 seconds.",
+        });
       }
+
+      // Clear cooldown after wait time
+      setTimeout(() => {
+        setCooldownEndTime(null);
+      }, COOLDOWN_MS);
     },
   });
 
@@ -154,6 +185,51 @@ export function Chat({
     setMessages,
   });
 
+  // Timeout mechanism: Reset status if stuck in 'submitted' for too long
+  useEffect(() => {
+    const TIMEOUT_MS = 30_000; // 30 seconds timeout
+
+    if (status === "submitted") {
+      // Start timeout when request is submitted
+      requestTimeoutRef.current = setTimeout(() => {
+        console.error("[Chat] Request timeout: No response after 30 seconds");
+
+        // Force stop the request
+        stop();
+
+        // Show error message as a chat message
+        const errorMessage: ChatMessage = {
+          id: generateUUID(),
+          role: "assistant",
+          parts: [
+            {
+              type: "text",
+              text: "⚠️ **Request Timeout**\n\nThe request took too long to complete and has been cancelled. This could be due to:\n- Network connectivity issues\n- Server not responding\n- Request validation errors\n\nPlease try your request again. If the problem persists, try:\n- Checking your internet connection\n- Simplifying your query\n- Waiting a moment before retrying",
+            },
+          ],
+        };
+
+        setMessages((prev) => [...prev, errorMessage]);
+
+        toast({
+          type: "error",
+          description: "Request timed out. Please try again.",
+        });
+      }, TIMEOUT_MS);
+    } else if (requestTimeoutRef.current) {
+      // Clear timeout when status changes from 'submitted'
+      clearTimeout(requestTimeoutRef.current);
+      requestTimeoutRef.current = null;
+    }
+
+    // Cleanup on unmount
+    return () => {
+      if (requestTimeoutRef.current) {
+        clearTimeout(requestTimeoutRef.current);
+      }
+    };
+  }, [status, stop, setMessages]);
+
   return (
     <>
       <div className="overscroll-behavior-contain flex h-dvh min-w-0 touch-pan-y flex-col bg-background">
@@ -180,6 +256,7 @@ export function Chat({
             <MultimodalInput
               attachments={attachments}
               chatId={id}
+              cooldownEndTime={cooldownEndTime}
               input={input}
               messages={messages}
               onModelChange={setCurrentModelId}

@@ -195,6 +195,12 @@ A `POST /api/chat 400` error occurs when the frontend sends a request that fails
 - ✅ Text length limit increased from 2,000 to 10,000 characters
 - ✅ Enhanced error messages now include specific validation failure details
 - ✅ Server logs validation errors for debugging
+- ✅ **Request timeout mechanism** (30 seconds) - If a request gets stuck, the UI will automatically:
+  - Cancel the request after 30 seconds
+  - Display an error message in the chat
+  - Show a toast notification
+  - Re-enable the input for new queries
+  - This prevents the chat from being stuck in a "waiting" state
 
 ---
 

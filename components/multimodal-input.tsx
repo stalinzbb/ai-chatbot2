@@ -63,6 +63,7 @@ function PureMultimodalInput({
   selectedModelId,
   onModelChange,
   usage,
+  cooldownEndTime,
 }: {
   chatId: string;
   input: string;
@@ -79,6 +80,7 @@ function PureMultimodalInput({
   selectedModelId: string;
   onModelChange?: (modelId: string) => void;
   usage?: AppUsage;
+  cooldownEndTime?: number | null;
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { width } = useWindowSize();
@@ -257,7 +259,20 @@ function PureMultimodalInput({
         className="rounded-xl border border-border bg-background p-3 shadow-xs transition-all duration-200 focus-within:border-border hover:border-muted-foreground/50"
         onSubmit={(event) => {
           event.preventDefault();
-          if (status !== "ready") {
+
+          // Check cooldown
+          const now = Date.now();
+          if (cooldownEndTime && now < cooldownEndTime) {
+            const remainingSeconds = Math.ceil((cooldownEndTime - now) / 1000);
+            toast.error(
+              `Please wait ${remainingSeconds} more second${
+                remainingSeconds !== 1 ? "s" : ""
+              } before trying again.`
+            );
+            return;
+          }
+
+          if (status === "submitted" || status === "streaming") {
             toast.error("Please wait for the model to finish its response!");
           } else {
             submitForm();
@@ -361,6 +376,9 @@ export const MultimodalInput = memo(
     if (prevProps.selectedModelId !== nextProps.selectedModelId) {
       return false;
     }
+    if (prevProps.cooldownEndTime !== nextProps.cooldownEndTime) {
+      return false;
+    }
 
     return true;
   }
@@ -376,12 +394,13 @@ function PureAttachmentsButton({
   selectedModelId: string;
 }) {
   const isReasoningModel = selectedModelId === "chat-model-reasoning";
+  const isRequestInProgress = status === "submitted" || status === "streaming";
 
   return (
     <Button
       className="aspect-square h-8 rounded-lg p-1 transition-colors hover:bg-accent"
       data-testid="attachments-button"
-      disabled={status !== "ready" || isReasoningModel}
+      disabled={isRequestInProgress || isReasoningModel}
       onClick={(event) => {
         event.preventDefault();
         fileInputRef.current?.click();
