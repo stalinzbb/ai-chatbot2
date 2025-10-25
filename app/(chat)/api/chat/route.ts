@@ -98,8 +98,25 @@ export async function POST(request: Request) {
   try {
     const json = await request.json();
     requestBody = postRequestBodySchema.parse(json);
-  } catch (_) {
-    return new ChatSDKError("bad_request:api").toResponse();
+  } catch (error) {
+    // Enhanced error handling with detailed validation feedback
+    console.error("[Chat API] Request validation failed:", error);
+
+    // If it's a Zod error, extract specific validation issues
+    let cause = "Invalid request format";
+    if (error && typeof error === "object" && "issues" in error) {
+      const issues = (error as any).issues;
+      if (Array.isArray(issues) && issues.length > 0) {
+        cause = issues
+          .map((issue: any) => {
+            const path = issue.path.join(".");
+            return `${path}: ${issue.message}`;
+          })
+          .join("; ");
+      }
+    }
+
+    return new ChatSDKError("bad_request:api", cause).toResponse();
   }
 
   try {

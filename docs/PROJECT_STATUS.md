@@ -14,7 +14,7 @@ Build an AI chatbot that helps users query the Double Good Design System by acce
 
 #### 1. **Chatbot Functionality**
 - **Local Deployment:** Run on `localhost:3000` using Next.js 15
-- **LLM Provider:** OpenRouter API with Claude 3.5 Sonnet
+- **LLM Provider:** OpenRouter API with GLM-4.6
 - **Authentication:** User login/registration via NextAuth.js
 - **Database:** PostgreSQL for storing chats, messages, and user data
 - **Real-time Streaming:** Stream AI responses to the UI
@@ -102,9 +102,9 @@ And the chatbot should:
 ### 5. **Model Configuration**
 **Status:** ✅ Fixed
 
-- All chat roles now point to `anthropic/claude-3.5-sonnet` via OpenRouter.
+- All chat roles now point to `z-ai/glm-4.6` via OpenRouter.
 - Reasoning responses use the SDK middleware instead of a separate model.
-- Title/artifact generation reuses Sonnet for consistent behaviour.
+- Title/artifact generation reuses GLM-4.6 for consistent behaviour.
 
 ### 6. **Testing Scripts**
 **Status:** ✅ Created
@@ -147,7 +147,58 @@ The configured OpenRouter API key belongs to an account with no credits. OpenRou
 
 ---
 
-### Issue 2: **React Hydration Error**
+### Issue 2: **Chat API 400 Bad Request Error**
+**Severity:** 🟡 Medium
+**Status:** Documented
+
+**What it means:**
+A `POST /api/chat 400` error occurs when the frontend sends a request that fails validation against the API schema defined in `app/(chat)/api/chat/schema.ts`.
+
+**Common Causes:**
+
+1. **Invalid UUIDs** - `id` or `message.id` not properly formatted UUID strings
+2. **Text too long** - Message text exceeds the character limit (default: 2000 characters)
+3. **Missing required fields** - Missing `id`, `message`, `selectedChatModel`, or `selectedVisibilityType`
+4. **Invalid enum values** - Wrong model name or visibility type
+5. **Invalid file format** - Only `image/jpeg` and `image/png` are supported
+
+**Required Request Format:**
+```json
+{
+  "id": "uuid-string",
+  "message": {
+    "id": "uuid-string",
+    "role": "user",
+    "parts": [
+      { "type": "text", "text": "Your message here (max 2000 chars)" }
+    ]
+  },
+  "selectedChatModel": "chat-model" | "chat-model-reasoning",
+  "selectedVisibilityType": "public" | "private"
+}
+```
+
+**How to Debug:**
+1. Open browser DevTools → Network tab
+2. Find the failed `/api/chat` request
+3. Check the **Request Payload** to see what was sent
+4. Compare against the schema requirements above
+5. Check browser console for validation error details
+
+**Resolution:**
+- Ensure frontend sends properly formatted UUIDs
+- Keep message text within character limits (increased to 10,000 characters)
+- Use valid model and visibility enum values
+- Check that all required fields are present
+
+**Recent Improvements:**
+- ✅ Text length limit increased from 2,000 to 10,000 characters
+- ✅ Enhanced error messages now include specific validation failure details
+- ✅ Server logs validation errors for debugging
+
+---
+
+### Issue 3: **React Hydration Error**
 **Severity:** 🟡 Medium
 **Status:** Unresolved (Non-blocking but indicates issues)
 
@@ -249,7 +300,7 @@ Backend API Route (app/(chat)/api/chat/route.ts)
     ↓
 streamText() - Vercel AI SDK
     ↓
-OpenRouter API (Claude 3.5 Sonnet)
+OpenRouter API (GLM-4.6)
     ↓ Tool Calls (if needed)
 MCP Client → Figma Desktop MCP Server
     ↓ Tool Results
@@ -265,7 +316,7 @@ UI Updates with Response
 ```
 streamText() - Vercel AI SDK
     ↓
-❌ OpenRouter API (Claude 3.5 Sonnet)
+❌ OpenRouter API (GLM-4.6)
     ↓ Returns 400 Error
     ↓ "Invalid schema for function 'getWeather'"
     ↓
@@ -371,10 +422,10 @@ UI: ❌ Shows "We’re having trouble sending your message" toast
   - Adds billing-aware error handling and guest entitlements
 
 /lib/ai/providers.ts
-  - Updated to use Claude 3.5 Sonnet model slugs
+  - Updated to use GLM-4.6 model slugs
 
 /lib/ai/models.ts
-- Model mapping updated to use Claude 3.5 Sonnet across all roles
+- Model mapping updated to use GLM-4.6 across all roles
 
 /lib/ai/prompts.ts
   - Updated tool list, including guidance for `listFileVariables`

@@ -40,7 +40,7 @@ This chatbot helps your team understand and use the Double Good Design System by
 
 ## Implementation Highlights
 
-- **OpenRouter integration** with Claude 3.5 Sonnet across chat, reasoning, and title flows (see `lib/ai/providers.ts`, `lib/ai/models.ts`).
+- **OpenRouter integration** with GLM-4.6 across chat, reasoning, and title flows (see `lib/ai/providers.ts`, `lib/ai/models.ts`).
 - **Figma MCP tooling** (`lib/mcp/tools/*`) plus the `listFileVariables` aggregator that blends MCP discovery with REST enrichment.
 - **Chat pipeline updates** in `app/(chat)/api/chat/route.ts`, including guest entitlements and billing-aware error handling.
 - **UI improvements** such as generic `tool-*` renderers in `components/message.tsx`.
@@ -67,9 +67,9 @@ This chatbot helps your team understand and use the Double Good Design System by
 
 This chatbot uses [OpenRouter](https://openrouter.ai) to access multiple AI models:
 
-- **Claude 3.5 Sonnet** – Main chat model (general responses and artifacts)
-- **Claude 3.5 Sonnet (reasoning wrapper)** – Same base model wrapped with the SDK’s reasoning middleware for “think” tags
-- **Claude 3.5 Sonnet** – Also reused for title and artifact generation to keep behavior consistent
+- **GLM-4.6** – Main chat model (general responses and artifacts)
+- **GLM-4.6 (reasoning wrapper)** – Same base model wrapped with the SDK's reasoning middleware for "think" tags
+- **GLM-4.6** – Also reused for title and artifact generation to keep behavior consistent
 
 ### Figma Integration
 

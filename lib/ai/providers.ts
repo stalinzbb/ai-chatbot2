@@ -50,16 +50,16 @@ export const myProvider = isTestEnvironment
     })()
   : customProvider({
       languageModels: {
-        // Main chat model - Claude 3.5 Sonnet for general chat handling
-        "chat-model": openrouter.chat("anthropic/claude-3.5-sonnet"),
+        // Main chat model - GLM 4.6 for general chat handling
+        "chat-model": openrouter.chat("z-ai/glm-4.6"),
         // Reasoning model - runs through the same model but with reasoning middleware
         "chat-model-reasoning": wrapLanguageModel({
-          model: openrouter.chat("anthropic/claude-3.5-sonnet"),
+          model: openrouter.chat("z-ai/glm-4.6"),
           middleware: extractReasoningMiddleware({ tagName: "think" }),
         }),
-        // Title model - Claude 3.5 Sonnet for consistent summaries
-        "title-model": openrouter.chat("anthropic/claude-3.5-sonnet"),
-        // Artifact model - Claude 3.5 Sonnet for document generation
-        "artifact-model": openrouter.chat("anthropic/claude-3.5-sonnet"),
+        // Title model - GLM 4.6 for consistent summaries
+        "title-model": openrouter.chat("z-ai/glm-4.6"),
+        // Artifact model - GLM 4.6 for document generation
+        "artifact-model": openrouter.chat("z-ai/glm-4.6"),
       },
     });

@@ -9,14 +9,14 @@ export type ChatModel = {
 export const chatModels: ChatModel[] = [
   {
     id: "chat-model",
-    name: "Claude 3.5 Sonnet",
+    name: "GLM-4.6",
     description:
-      "Anthropic Claude 3.5 Sonnet for all chat interactions, optimized for Design System support",
+      "Z-AI GLM-4.6 model for all chat interactions, optimized for Design System support",
   },
   {
     id: "chat-model-reasoning",
-    name: "Claude 3.5 Sonnet (Reasoning)",
+    name: "GLM-4.6 (Reasoning)",
     description:
-      "Claude 3.5 Sonnet reasoning mode for complex Design System architecture questions",
+      "GLM-4.6 reasoning mode for complex Design System architecture questions",
   },
 ];
