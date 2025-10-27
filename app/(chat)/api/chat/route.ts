@@ -38,6 +38,11 @@ import {
   updateChatLastContextById,
 } from "@/lib/db/queries";
 import { ChatSDKError } from "@/lib/errors";
+import { decideEnrichment } from "@/lib/figma/enrichment";
+import {
+  formatMatchesForPrompt,
+  searchFigmaIndex,
+} from "@/lib/figma/index-search";
 // MCP Tools for Figma Desktop
 import {
   getCodeConnectMap,
@@ -49,7 +54,11 @@ import {
 } from "@/lib/mcp/tools";
 import type { ChatMessage } from "@/lib/types";
 import type { AppUsage } from "@/lib/usage";
-import { convertToUIMessages, generateUUID } from "@/lib/utils";
+import {
+  convertToUIMessages,
+  generateUUID,
+  getTextFromMessage,
+} from "@/lib/utils";
 import { generateTitleFromUserMessage } from "../../actions";
 import { type PostRequestBody, postRequestBodySchema } from "./schema";
 
@@ -172,6 +181,60 @@ export async function POST(request: Request) {
     const messagesFromDb = await getMessagesByChatId({ id });
     const uiMessages = [...convertToUIMessages(messagesFromDb), message];
 
+    let indexSearchSummary: string | null = null;
+
+    try {
+      const latestUserText = getTextFromMessage(message).trim();
+
+      if (latestUserText) {
+        const indexSearchOutcome = await searchFigmaIndex({
+          query: latestUserText,
+          limit: 5,
+        });
+
+        indexSearchSummary = formatMatchesForPrompt(indexSearchOutcome, 3);
+
+        if (indexSearchOutcome.matches.length) {
+          console.log(
+            "[Chat API] Index matches",
+            indexSearchOutcome.matches.slice(0, 3).map((match) => ({
+              nodeId: match.componentId,
+              fileId: match.fileId,
+              component: match.componentName,
+              score: Number(match.score.toFixed(2)),
+            }))
+          );
+        }
+
+        const enrichmentDecision = decideEnrichment(indexSearchOutcome);
+
+        if (enrichmentDecision.shouldAutoEnrich) {
+          const { target } = enrichmentDecision;
+          console.log(
+            "[Chat API] Enrichment trigger",
+            target
+              ? {
+                  nodeId: target.nodeId,
+                  fileId: target.fileId,
+                  component: target.componentName,
+                  platform: target.platform,
+                  score: Number(target.score.toFixed(2)),
+                }
+              : enrichmentDecision
+          );
+
+          if (target) {
+            const primaryLine = `PRIMARY CANDIDATE → node ${target.nodeId} (${target.componentName})`;
+            indexSearchSummary = indexSearchSummary
+              ? `${primaryLine}\n${indexSearchSummary}`
+              : primaryLine;
+          }
+        }
+      }
+    } catch (err) {
+      console.warn("[Chat API] Pre-chat index search failed", err);
+    }
+
     const { longitude, latitude, city, country } = geolocation(request);
 
     const requestHints: RequestHints = {
@@ -211,7 +274,11 @@ export async function POST(request: Request) {
         console.log("[Chat API] Executing streamText...");
         const result = streamText({
           model: myProvider.languageModel(selectedChatModel),
-          system: systemPrompt({ selectedChatModel, requestHints }),
+          system: systemPrompt({
+            selectedChatModel,
+            requestHints,
+            indexSummary: indexSearchSummary || undefined,
+          }),
           messages: convertToModelMessages(uiMessages),
           stopWhen: stepCountIs(5),
           experimental_activeTools:

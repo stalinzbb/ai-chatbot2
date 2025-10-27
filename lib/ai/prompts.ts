@@ -107,17 +107,22 @@ About the origin of user's request:
 export const systemPrompt = ({
   selectedChatModel,
   requestHints,
+  indexSummary,
 }: {
   selectedChatModel: string;
   requestHints: RequestHints;
+  indexSummary?: string;
 }) => {
   const requestPrompt = getRequestPromptFromHints(requestHints);
+  const indexPrompt = indexSummary
+    ? `\n\nINDEX SEARCH RESULTS (top matches)\n${indexSummary}`
+    : "";
 
   if (selectedChatModel === "chat-model-reasoning") {
-    return `${regularPrompt}\n\n${requestPrompt}`;
+    return `${regularPrompt}${indexPrompt}\n\n${requestPrompt}`;
   }
 
-  return `${regularPrompt}\n\n${requestPrompt}\n\n${artifactsPrompt}`;
+  return `${regularPrompt}${indexPrompt}\n\n${requestPrompt}\n\n${artifactsPrompt}`;
 };
 
 export const codePrompt = `

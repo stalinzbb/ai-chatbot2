@@ -1,21 +1,17 @@
-/**
- * @deprecated This tool uses Figma REST API and has been replaced by MCP tools.
- * Use the following MCP tools instead:
- * - getMetadata: To explore file structure and find components
- * - getDesignContext: To get component details and code
- * - getCodeConnectMap: To find component usage in codebase
- *
- * This file is kept for reference and potential fallback only.
- */
-
 import { tool } from "ai";
 import { z } from "zod";
 import { searchComponents } from "@/lib/figma/client";
 import { FIGMA_FILES } from "@/lib/figma/config";
+import {
+  type ComponentLocation,
+  buildFigmaNodeUrl,
+  formatMatchesForPrompt,
+  searchFigmaIndex,
+} from "@/lib/figma/index-search";
 
 export const queryFigmaComponents = tool({
-  description: `Search for components in the Double Good Design System Figma files.
-  This includes Native Components (iOS/Android React Native) and Web Components.
+  description: `Search for components in the Double Good Design System using the locally generated Figma index.
+  The tool prioritizes fast keyword lookup across Native and Web component libraries and master files before falling back to the Figma REST API.
   Use this when users ask about specific UI components like buttons, navigation bars, list items, avatars, cards, etc.`,
 
   inputSchema: z.object({
@@ -34,11 +30,109 @@ export const queryFigmaComponents = tool({
 
   execute: async ({ query, platform = "both" }) => {
     try {
-      // Search across all component files
-      const results = await searchComponents(query);
+      const indexOutcome = await searchFigmaIndex({
+        query,
+        platform,
+        limit: 12,
+      });
 
-      // Filter by platform if specified
-      const filteredResults = results.filter((result) => {
+      if (indexOutcome.matches.length > 0) {
+        type GroupedComponent = {
+          name: string;
+          nodeId: string;
+          variant?: string;
+          description: string;
+          matchedTokens: string[];
+          score: number;
+          occurrences: ComponentLocation[];
+          source: (typeof indexOutcome.matches)[number]["source"];
+          figmaLink: string;
+        };
+
+        const mapMatch = (
+          match: (typeof indexOutcome.matches)[number],
+        ): GroupedComponent => ({
+          name: match.componentName,
+          nodeId: match.componentId,
+          variant: match.variant,
+          description: match.description ?? "No description available",
+          matchedTokens: match.matchedTokens,
+          score: Number(match.score.toFixed(2)),
+          occurrences: match.locations.slice(0, 5),
+          source: match.source,
+          figmaLink: buildFigmaNodeUrl(match.fileId, match.componentId),
+        });
+
+        const groups = new Map<
+          string,
+          {
+            fileName: string;
+            fileId: string;
+            platformLabel: string;
+            sourceLabel: string;
+            components: GroupedComponent[];
+          }
+        >();
+
+        for (const match of indexOutcome.matches) {
+          const key = match.fileId;
+          const existingGroup = groups.get(key);
+
+          if (existingGroup) {
+            existingGroup.components.push(mapMatch(match));
+            continue;
+          }
+
+          const platformLabel =
+            match.platform === "native"
+              ? "Native (iOS/Android React Native)"
+              : "Web";
+          const sourceLabel =
+            match.source === "library" ? "Library" : "Master";
+
+          groups.set(key, {
+            fileName: match.fileName,
+            fileId: match.fileId,
+            platformLabel,
+            sourceLabel,
+            components: [mapMatch(match)],
+          });
+        }
+
+        const formattedResults = Array.from(groups.values()).map((group) => ({
+          file: group.fileName,
+          fileId: group.fileId,
+          platform: group.platformLabel,
+          source: group.sourceLabel,
+          componentsFound: group.components.length,
+          components: group.components,
+        }));
+
+        const totalFound = formattedResults.reduce(
+          (sum, current) => sum + current.componentsFound,
+          0,
+        );
+
+        return {
+          success: true,
+          query,
+          platform,
+          totalResults: totalFound,
+          results: formattedResults,
+          source: "figma_index",
+          tokens: indexOutcome.tokens,
+          hints: {
+            platform: indexOutcome.platformHint,
+            source: indexOutcome.sourceHint,
+          },
+          promptSummary: formatMatchesForPrompt(indexOutcome),
+          message: `Found ${totalFound} indexed components matching "${query}"`,
+        };
+      }
+
+      const apiResults = await searchComponents(query);
+
+      const filteredResults = apiResults.filter((result) => {
         if (platform === "both") {
           return true;
         }
@@ -54,6 +148,7 @@ export const queryFigmaComponents = tool({
       if (filteredResults.length === 0) {
         return {
           success: false,
+          source: "figma_api",
           message: `No components found matching "${query}" for platform: ${platform}`,
           suggestions: [
             "Try using different keywords (e.g., 'button', 'nav', 'list', 'input')",
@@ -63,7 +158,6 @@ export const queryFigmaComponents = tool({
         };
       }
 
-      // Format results for LLM
       const formattedResults = filteredResults.map((file) => ({
         file: file.fileName,
         fileId: file.fileId,
@@ -81,7 +175,7 @@ export const queryFigmaComponents = tool({
 
       const totalFound = formattedResults.reduce(
         (acc, file) => acc + file.componentsFound,
-        0
+        0,
       );
 
       return {
@@ -90,10 +184,11 @@ export const queryFigmaComponents = tool({
         platform,
         totalResults: filteredResults.reduce(
           (acc, file) => acc + file.components.length,
-          0
+          0,
         ),
         results: formattedResults,
-        message: `Found ${totalFound} components matching "${query}"`,
+        source: "figma_api",
+        message: `Found ${totalFound} components matching "${query}" via Figma API fallback`,
       };
     } catch (error) {
       console.error("Error querying Figma components:", error);
