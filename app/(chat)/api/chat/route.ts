@@ -280,8 +280,10 @@ export async function POST(request: Request) {
         const abortController = new AbortController();
         registerStreamController(streamId, abortController);
 
+        let streamResult: ReturnType<typeof streamText> | null = null;
+
         try {
-          const result = streamText({
+          streamResult = streamText({
             model: myProvider.languageModel(selectedChatModel),
             system: systemPrompt({
               selectedChatModel,
@@ -387,17 +389,19 @@ export async function POST(request: Request) {
             data: { streamId },
           });
 
-          result.consumeStream();
+          streamResult.consumeStream();
         } catch (streamError) {
           unregisterStreamController(streamId);
           throw streamError;
         }
 
-        dataStream.merge(
-          result.toUIMessageStream({
-            sendReasoning: true,
-          })
-        );
+        if (streamResult) {
+          dataStream.merge(
+            streamResult.toUIMessageStream({
+              sendReasoning: true,
+            })
+          );
+        }
       },
       generateId: generateUUID,
       onFinish: async ({ messages }) => {
