@@ -1075,6 +1075,7 @@ export function formatMatchesForPrompt(
     const parts = [
       `${index + 1}. ${platformLabel} ${sourceLabel} ${kindLabel}`,
       `${match.componentName}${variantLabel}`,
+      `node ${match.nodeId}`,
       `file ${match.fileName}`,
     ];
 
