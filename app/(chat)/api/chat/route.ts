@@ -282,6 +282,14 @@ export async function POST(request: Request) {
 
         let streamResult: ReturnType<typeof streamText> | null = null;
 
+        const modelsWithoutTools = new Set<ChatModel["id"]>([
+          "deepseek-chat-v3-1",
+          "deepseek-r1-0528",
+        ]);
+        const shouldUseTools =
+          selectedChatModel !== "chat-model-reasoning" &&
+          !modelsWithoutTools.has(selectedChatModel);
+
         try {
           streamResult = streamText({
             model: myProvider.languageModel(selectedChatModel),
@@ -293,38 +301,39 @@ export async function POST(request: Request) {
             messages: convertToModelMessages(uiMessages),
             stopWhen: stepCountIs(5),
             abortSignal: abortController.signal,
-            experimental_activeTools:
-              selectedChatModel === "chat-model-reasoning"
-                ? []
-                : [
-                    "createDocument",
-                    "updateDocument",
-                    "requestSuggestions",
-                    "getDesignContext",
-                    "getVariableDefs",
-                    "getMetadata",
-                    "getScreenshot",
-                    "getCodeConnectMap",
-                    "listFileVariables",
-                    "queryFigmaComponents",
-                  ],
+            experimental_activeTools: shouldUseTools
+              ? [
+                  "createDocument",
+                  "updateDocument",
+                  "requestSuggestions",
+                  "getDesignContext",
+                  "getVariableDefs",
+                  "getMetadata",
+                  "getScreenshot",
+                  "getCodeConnectMap",
+                  "listFileVariables",
+                  "queryFigmaComponents",
+                ]
+              : [],
             experimental_transform: smoothStream({ chunking: "word" }),
-            tools: {
-              createDocument: createDocument({ session, dataStream }),
-              updateDocument: updateDocument({ session, dataStream }),
-              requestSuggestions: requestSuggestions({
-                session,
-                dataStream,
-              }),
-              // MCP Tools for Figma Desktop
-              getDesignContext,
-              getVariableDefs,
-              getMetadata,
-              getScreenshot,
-              getCodeConnectMap,
-              listFileVariables,
-              queryFigmaComponents,
-            },
+            tools: shouldUseTools
+              ? {
+                  createDocument: createDocument({ session, dataStream }),
+                  updateDocument: updateDocument({ session, dataStream }),
+                  requestSuggestions: requestSuggestions({
+                    session,
+                    dataStream,
+                  }),
+                  // MCP Tools for Figma Desktop
+                  getDesignContext,
+                  getVariableDefs,
+                  getMetadata,
+                  getScreenshot,
+                  getCodeConnectMap,
+                  listFileVariables,
+                  queryFigmaComponents,
+                }
+              : undefined,
             experimental_telemetry: {
               isEnabled: isProductionEnvironment,
               functionId: "stream-text",
