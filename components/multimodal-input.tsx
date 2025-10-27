@@ -64,6 +64,7 @@ function PureMultimodalInput({
   onModelChange,
   usage,
   cooldownEndTime,
+  onCancelCurrentRequest,
 }: {
   chatId: string;
   input: string;
@@ -81,6 +82,7 @@ function PureMultimodalInput({
   onModelChange?: (modelId: string) => void;
   usage?: AppUsage;
   cooldownEndTime?: number | null;
+  onCancelCurrentRequest?: () => Promise<void> | void;
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const { width } = useWindowSize();
@@ -341,8 +343,13 @@ function PureMultimodalInput({
             />
           </PromptInputTools>
 
-          {status === "submitted" ? (
-            <StopButton setMessages={setMessages} stop={stop} />
+          {status === "submitted" || status === "streaming" ? (
+            <StopButton
+              disabled={false}
+              onCancel={onCancelCurrentRequest}
+              setMessages={setMessages}
+              stop={stop}
+            />
           ) : (
             <PromptInputSubmit
               className="size-8 rounded-full bg-primary text-primary-foreground transition-colors duration-200 hover:bg-primary/90 disabled:bg-muted disabled:text-muted-foreground"
@@ -377,6 +384,9 @@ export const MultimodalInput = memo(
       return false;
     }
     if (prevProps.cooldownEndTime !== nextProps.cooldownEndTime) {
+      return false;
+    }
+    if (prevProps.onCancelCurrentRequest !== nextProps.onCancelCurrentRequest) {
       return false;
     }
 
@@ -476,9 +486,13 @@ const ModelSelectorCompact = memo(PureModelSelectorCompact);
 function PureStopButton({
   stop,
   setMessages,
+  onCancel,
+  disabled,
 }: {
   stop: () => void;
   setMessages: UseChatHelpers<ChatMessage>["setMessages"];
+  onCancel?: () => Promise<void> | void;
+  disabled?: boolean;
 }) {
   return (
     <Button
@@ -488,7 +502,9 @@ function PureStopButton({
         event.preventDefault();
         stop();
         setMessages((messages) => messages);
+        void onCancel?.();
       }}
+      disabled={disabled}
     >
       <StopIcon size={14} />
     </Button>

@@ -3,7 +3,7 @@
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import useSWR, { useSWRConfig } from "swr";
 import { unstable_serialize } from "swr/infinite";
 import { ChatHeader } from "@/components/chat-header";
@@ -65,6 +65,8 @@ export function Chat({
   const currentModelIdRef = useRef(currentModelId);
   const requestTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [cooldownEndTime, setCooldownEndTime] = useState<number | null>(null);
+  const [activeStreamId, setActiveStreamId] = useState<string | null>(null);
+  const cancellingRef = useRef(false);
 
   useEffect(() => {
     currentModelIdRef.current = currentModelId;
@@ -99,17 +101,22 @@ export function Chat({
       },
     }),
     onData: (dataPart) => {
+      if (dataPart.type === "data-streamControl") {
+        setActiveStreamId(dataPart.data.streamId);
+      }
       setDataStream((ds) => (ds ? [...ds, dataPart] : []));
       if (dataPart.type === "data-usage") {
         setUsage(dataPart.data);
       }
     },
     onFinish: () => {
+      setActiveStreamId(null);
       mutate(unstable_serialize(getChatHistoryPaginationKey));
     },
     onError: (error) => {
       // Force stop to reset status to "ready"
       stop();
+      setActiveStreamId(null);
 
       const COOLDOWN_MS = 5_000; // 5 second cooldown
       const cooldownEnd = Date.now() + COOLDOWN_MS;
@@ -185,6 +192,26 @@ export function Chat({
     setMessages,
   });
 
+  const cancelActiveRequest = useCallback(async () => {
+    if (!activeStreamId || cancellingRef.current) {
+      return;
+    }
+
+    cancellingRef.current = true;
+    try {
+      await fetch("/api/chat/cancel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ streamId: activeStreamId }),
+      });
+    } catch (error) {
+      console.warn("[Chat] Failed to cancel stream", error);
+    } finally {
+      cancellingRef.current = false;
+      setActiveStreamId(null);
+    }
+  }, [activeStreamId]);
+
   // Timeout mechanism: Reset status if stuck in 'submitted' for too long
   useEffect(() => {
     const TIMEOUT_MS = 30_000; // 30 seconds timeout
@@ -196,6 +223,7 @@ export function Chat({
 
         // Force stop the request
         stop();
+        void cancelActiveRequest();
 
         // Show error message as a chat message
         const errorMessage: ChatMessage = {
@@ -228,7 +256,7 @@ export function Chat({
         clearTimeout(requestTimeoutRef.current);
       }
     };
-  }, [status, stop, setMessages]);
+  }, [status, stop, setMessages, cancelActiveRequest]);
 
   return (
     <>
@@ -268,6 +296,7 @@ export function Chat({
               setMessages={setMessages}
               status={status}
               stop={stop}
+              onCancelCurrentRequest={cancelActiveRequest}
               usage={usage}
             />
           )}
@@ -289,6 +318,7 @@ export function Chat({
         setMessages={setMessages}
         status={status}
         stop={stop}
+        onCancelCurrentRequest={cancelActiveRequest}
         votes={votes}
       />
 

@@ -43,6 +43,9 @@ export type CustomUIDataTypes = {
   clear: null;
   finish: null;
   usage: AppUsage;
+  streamControl: {
+    streamId: string;
+  };
 };
 
 export type ChatMessage = UIMessage<

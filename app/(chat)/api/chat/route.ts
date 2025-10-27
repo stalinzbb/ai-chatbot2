@@ -26,6 +26,10 @@ import { createDocument } from "@/lib/ai/tools/create-document";
 import { queryFigmaComponents } from "@/lib/ai/tools/query-figma-components";
 import { requestSuggestions } from "@/lib/ai/tools/request-suggestions";
 import { updateDocument } from "@/lib/ai/tools/update-document";
+import {
+  registerStreamController,
+  unregisterStreamController,
+} from "@/lib/ai/stream-registry";
 import { isProductionEnvironment } from "@/lib/constants";
 import {
   createStreamId,
@@ -273,93 +277,121 @@ export async function POST(request: Request) {
     const stream = createUIMessageStream({
       execute: ({ writer: dataStream }) => {
         console.log("[Chat API] Executing streamText...");
-        const result = streamText({
-          model: myProvider.languageModel(selectedChatModel),
-          system: systemPrompt({
-            selectedChatModel,
-            requestHints,
-            indexSummary: indexSearchSummary || undefined,
-          }),
-          messages: convertToModelMessages(uiMessages),
-          stopWhen: stepCountIs(5),
-          experimental_activeTools:
-            selectedChatModel === "chat-model-reasoning"
-              ? []
-              : [
-                  "createDocument",
-                  "updateDocument",
-                  "requestSuggestions",
-                  "getDesignContext",
-                  "getVariableDefs",
-                  "getMetadata",
-                  "getScreenshot",
-                  "getCodeConnectMap",
-                  "listFileVariables",
-                  "queryFigmaComponents",
-                ],
-          experimental_transform: smoothStream({ chunking: "word" }),
-          tools: {
-            createDocument: createDocument({ session, dataStream }),
-            updateDocument: updateDocument({ session, dataStream }),
-            requestSuggestions: requestSuggestions({
-              session,
-              dataStream,
+        const abortController = new AbortController();
+        registerStreamController(streamId, abortController);
+
+        try {
+          const result = streamText({
+            model: myProvider.languageModel(selectedChatModel),
+            system: systemPrompt({
+              selectedChatModel,
+              requestHints,
+              indexSummary: indexSearchSummary || undefined,
             }),
-            // MCP Tools for Figma Desktop
-            getDesignContext,
-            getVariableDefs,
-            getMetadata,
-            getScreenshot,
-            getCodeConnectMap,
-            listFileVariables,
-            queryFigmaComponents,
-          },
-          experimental_telemetry: {
-            isEnabled: isProductionEnvironment,
-            functionId: "stream-text",
-          },
-          onFinish: async ({ usage }) => {
-            console.log(
-              "[Chat API] streamText onFinish called with usage:",
-              usage
-            );
-            try {
-              const providers = await getTokenlensCatalog();
-              const modelId =
-                myProvider.languageModel(selectedChatModel).modelId;
-              if (!modelId) {
-                console.log("[Chat API] No modelId found");
+            messages: convertToModelMessages(uiMessages),
+            stopWhen: stepCountIs(5),
+            abortSignal: abortController.signal,
+            experimental_activeTools:
+              selectedChatModel === "chat-model-reasoning"
+                ? []
+                : [
+                    "createDocument",
+                    "updateDocument",
+                    "requestSuggestions",
+                    "getDesignContext",
+                    "getVariableDefs",
+                    "getMetadata",
+                    "getScreenshot",
+                    "getCodeConnectMap",
+                    "listFileVariables",
+                    "queryFigmaComponents",
+                  ],
+            experimental_transform: smoothStream({ chunking: "word" }),
+            tools: {
+              createDocument: createDocument({ session, dataStream }),
+              updateDocument: updateDocument({ session, dataStream }),
+              requestSuggestions: requestSuggestions({
+                session,
+                dataStream,
+              }),
+              // MCP Tools for Figma Desktop
+              getDesignContext,
+              getVariableDefs,
+              getMetadata,
+              getScreenshot,
+              getCodeConnectMap,
+              listFileVariables,
+              queryFigmaComponents,
+            },
+            experimental_telemetry: {
+              isEnabled: isProductionEnvironment,
+              functionId: "stream-text",
+            },
+            onFinish: async ({ usage }) => {
+              console.log(
+                "[Chat API] streamText onFinish called with usage:",
+                usage
+              );
+              unregisterStreamController(streamId);
+              try {
+                const providers = await getTokenlensCatalog();
+                const modelId =
+                  myProvider.languageModel(selectedChatModel).modelId;
+                if (!modelId) {
+                  console.log("[Chat API] No modelId found");
+                  finalMergedUsage = usage;
+                  dataStream.write({
+                    type: "data-usage",
+                    data: finalMergedUsage,
+                  });
+                  return;
+                }
+
+                if (!providers) {
+                  console.log("[Chat API] No providers catalog");
+                  finalMergedUsage = usage;
+                  dataStream.write({
+                    type: "data-usage",
+                    data: finalMergedUsage,
+                  });
+                  return;
+                }
+
+                const summary = getUsage({ modelId, usage, providers });
+                finalMergedUsage = { ...usage, ...summary, modelId } as AppUsage;
+                console.log("[Chat API] Writing usage data");
+                dataStream.write({
+                  type: "data-usage",
+                  data: finalMergedUsage,
+                });
+              } catch (err) {
+                console.warn("TokenLens enrichment failed", err);
                 finalMergedUsage = usage;
                 dataStream.write({
                   type: "data-usage",
                   data: finalMergedUsage,
                 });
-                return;
               }
+            },
+            onAbort: () => {
+              unregisterStreamController(streamId);
+            },
+            onError: ({ error }) => {
+              unregisterStreamController(streamId);
+              console.error("[Chat API] streamText error", error);
+            },
+          });
 
-              if (!providers) {
-                console.log("[Chat API] No providers catalog");
-                finalMergedUsage = usage;
-                dataStream.write({
-                  type: "data-usage",
-                  data: finalMergedUsage,
-                });
-                return;
-              }
+          dataStream.write({
+            type: "data-streamControl",
+            data: { streamId },
+          });
 
-              const summary = getUsage({ modelId, usage, providers });
-              finalMergedUsage = { ...usage, ...summary, modelId } as AppUsage;
-              console.log("[Chat API] Writing usage data");
-              dataStream.write({ type: "data-usage", data: finalMergedUsage });
-            } catch (err) {
-              console.warn("TokenLens enrichment failed", err);
-              finalMergedUsage = usage;
-              dataStream.write({ type: "data-usage", data: finalMergedUsage });
-            }
-          },
-        });
-
-        result.consumeStream();
+          result.consumeStream();
+        } catch (streamError) {
+          unregisterStreamController(streamId);
+          throw streamError;
+        }
 
         dataStream.merge(
           result.toUIMessageStream({
@@ -392,6 +424,7 @@ export async function POST(request: Request) {
         }
       },
       onError: (error) => {
+        unregisterStreamController(streamId);
         console.error("[Chat API] Stream error:", error);
         return `Error: ${error instanceof Error ? error.message : "An error occurred"}`;
       },

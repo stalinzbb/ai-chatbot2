@@ -1,5 +1,7 @@
-import { promises as fs } from "fs";
-import path from "path";
+import { promises as fs } from "node:fs";
+import path from "node:path";
+
+import { extractKeywords } from "@/lib/utils";
 
 const FIGMA_INDEX_DIR = path.join(process.cwd(), "figma_index");
 
@@ -233,6 +235,7 @@ type KeywordHints = {
   component: boolean;
   screen: boolean;
   page: boolean;
+  focusTerms: string[];
 };
 
 function normalizeText(text: string): string {
@@ -843,6 +846,37 @@ function scoreMatch(
     score += Math.min(3, node.counts.components * 0.25);
   }
 
+  if (keywordHints.focusTerms.length) {
+    const aliases = new Set<string>();
+
+    node.tokens.name.forEach((token) => aliases.add(token));
+    node.tokens.path.forEach((token) => aliases.add(token));
+    node.tokens.text.forEach((token) => aliases.add(token));
+    node.tokens.tag.forEach((token) => aliases.add(token));
+
+    const overlap = keywordHints.focusTerms.filter((term) =>
+      aliases.has(term)
+    );
+
+    if (overlap.length) {
+      score += overlap.length * 2;
+    }
+
+    if (
+      node.kind === "screen" &&
+      overlap.some((term) => term.includes("builder") || term.includes("tour"))
+    ) {
+      score += 6;
+    }
+
+    if (
+      node.kind === "page" &&
+      overlap.some((term) => term.includes("builder") || term.includes("tour"))
+    ) {
+      score += 4;
+    }
+  }
+
   return { score, matchedTokens: Array.from(matchedTokens) };
 }
 
@@ -869,6 +903,7 @@ export async function searchFigmaIndex(
       (token) => token === "screen" || token === "screens",
     ),
     page: queryTokens.some((token) => token === "page" || token === "pages"),
+    focusTerms: extractKeywords(rawQuery),
   };
   const platformFilter =
     options.platform && options.platform !== "both"

@@ -108,6 +108,19 @@ export function convertToUIMessages(messages: DBMessage[]): ChatMessage[] {
   }));
 }
 
+export function extractKeywords(text: string): string[] {
+  const normalized = text
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\p{L}\p{N}\s]+/gu, ' ');
+
+  return normalized
+    .split(' ')
+    .map((token) => token.trim())
+    .filter((token) => token.length > 1);
+}
+
 export function getTextFromMessage(message: ChatMessage): string {
   return message.parts
     .filter((part) => part.type === 'text')

@@ -68,6 +68,7 @@ function PureArtifact({
   isReadonly,
   selectedVisibilityType,
   selectedModelId,
+  onCancelCurrentRequest,
 }: {
   chatId: string;
   input: string;
@@ -84,6 +85,7 @@ function PureArtifact({
   isReadonly: boolean;
   selectedVisibilityType: VisibilityType;
   selectedModelId: string;
+  onCancelCurrentRequest?: () => Promise<void> | void;
 }) {
   const { artifact, setArtifact, metadata, setMetadata } = useArtifact();
 
@@ -345,6 +347,7 @@ function PureArtifact({
                     setMessages={setMessages}
                     status={status}
                     stop={stop}
+                    onCancelCurrentRequest={onCancelCurrentRequest}
                   />
                 </div>
               </div>
@@ -522,6 +525,11 @@ export const Artifact = memo(PureArtifact, (prevProps, nextProps) => {
     return false;
   }
   if (prevProps.selectedVisibilityType !== nextProps.selectedVisibilityType) {
+    return false;
+  }
+  if (
+    prevProps.onCancelCurrentRequest !== nextProps.onCancelCurrentRequest
+  ) {
     return false;
   }
 

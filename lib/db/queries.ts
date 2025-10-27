@@ -591,3 +591,24 @@ export async function getStreamIdsByChatId({ chatId }: { chatId: string }) {
     );
   }
 }
+
+export async function deleteStreamIdById({
+  streamId,
+}: {
+  streamId: string;
+}) {
+  try {
+    const deleted = await db
+      .delete(stream)
+      .where(eq(stream.id, streamId))
+      .returning({ id: stream.id })
+      .execute();
+
+    return deleted.length > 0;
+  } catch (_error) {
+    throw new ChatSDKError(
+      "bad_request:database",
+      "Failed to delete stream id"
+    );
+  }
+}
