@@ -20,7 +20,7 @@ This chatbot answers Double Good design-system questions by combining the Vercel
 3. Confirm the key belongs to an account or organisation with credits.
 4. Store the key securely (do not commit it).
 
-> 💡 GLM-4.6 currently costs roughly $0.50 / million input tokens and $0.50 / million output tokens (check OpenRouter for the latest pricing).
+> 💡 GPT-4o Mini is cost-effective and has excellent function calling capabilities (check OpenRouter for the latest pricing).
 
 ### 2. Generate a Figma Personal Access Token
 
@@ -91,7 +91,7 @@ Before using the UI, confirm the key works:
 curl -X POST https://openrouter.ai/api/v1/chat/completions \
   -H "Authorization: Bearer $OPENROUTER_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"model":"z-ai/glm-4.6","messages":[{"role":"user","content":"ping"}]}'
+  -d '{"model":"openai/gpt-4o-mini","messages":[{"role":"user","content":"ping"}]}'
 ```
 
 If you receive `402 Insufficient credits`, top up the account and retry.
@@ -100,10 +100,10 @@ If you receive `402 Insufficient credits`, top up the account and retry.
 
 ### Model Configuration
 
-All chat roles reuse **GLM-4.6** via OpenRouter:
+All chat roles reuse **GPT-4o Mini** via OpenRouter:
 - `chat-model` – standard chat sessions.
 - `chat-model-reasoning` – the same model wrapped with the SDK's reasoning middleware (emits `<think>` tags).
-- `title-model` and `artifact-model` – reuse GLM-4.6 for consistent summaries and artifacts.
+- `title-model` and `artifact-model` – reuse GPT-4o Mini for consistent summaries and artifacts.
 
 ### Tooling
 

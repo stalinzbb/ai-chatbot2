@@ -16,7 +16,9 @@
       "Bash(pnpm db:push:*)",
       "Bash(pnpm db:migrate:*)",
       "Bash(cat:*)",
-      "Bash(git check-ignore:*)"
+      "Bash(git check-ignore:*)",
+      "Bash(npx tsc:*)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []

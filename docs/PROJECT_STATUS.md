@@ -14,7 +14,7 @@ Build an AI chatbot that helps users query the Double Good Design System by acce
 
 #### 1. **Chatbot Functionality**
 - **Local Deployment:** Run on `localhost:3000` using Next.js 15
-- **LLM Provider:** OpenRouter API with GLM-4.6
+- **LLM Provider:** OpenRouter API with GPT-4o Mini
 - **Authentication:** User login/registration via NextAuth.js
 - **Database:** PostgreSQL for storing chats, messages, and user data
 - **Real-time Streaming:** Stream AI responses to the UI
@@ -102,9 +102,9 @@ And the chatbot should:
 ### 5. **Model Configuration**
 **Status:** ✅ Fixed
 
-- All chat roles now point to `z-ai/glm-4.6` via OpenRouter.
+- All chat roles now point to `openai/gpt-4o-mini` via OpenRouter.
 - Reasoning responses use the SDK middleware instead of a separate model.
-- Title/artifact generation reuses GLM-4.6 for consistent behaviour.
+- Title/artifact generation reuses GPT-4o Mini for consistent behaviour.
 
 ### 6. **Testing Scripts**
 **Status:** ✅ Created
@@ -306,7 +306,7 @@ Backend API Route (app/(chat)/api/chat/route.ts)
     ↓
 streamText() - Vercel AI SDK
     ↓
-OpenRouter API (GLM-4.6)
+OpenRouter API (GPT-4o Mini)
     ↓ Tool Calls (if needed)
 MCP Client → Figma Desktop MCP Server
     ↓ Tool Results
@@ -322,7 +322,7 @@ UI Updates with Response
 ```
 streamText() - Vercel AI SDK
     ↓
-❌ OpenRouter API (GLM-4.6)
+❌ OpenRouter API (GPT-4o Mini)
     ↓ Returns 400 Error
     ↓ "Invalid schema for function 'getWeather'"
     ↓
@@ -428,10 +428,10 @@ UI: ❌ Shows "We’re having trouble sending your message" toast
   - Adds billing-aware error handling and guest entitlements
 
 /lib/ai/providers.ts
-  - Updated to use GLM-4.6 model slugs
+  - Updated to use GPT-4o Mini model slugs
 
 /lib/ai/models.ts
-- Model mapping updated to use GLM-4.6 across all roles
+- Model mapping updated to use GPT-4o Mini across all roles
 
 /lib/ai/prompts.ts
   - Updated tool list, including guidance for `listFileVariables`

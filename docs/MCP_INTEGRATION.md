@@ -2,7 +2,7 @@
 
 ## Overview
 
-The chatbot relies on the **Figma Desktop MCP server** (`http://127.0.0.1:3845/mcp`) as its primary design data source. To cover gaps that MCP cannot address (e.g., enumerating every token in a file), we layer in a lightweight Figma REST fallback that only activates when a `fileId` is explicitly provided. All tooling is surfaced to the LLM through the Vercel AI SDK with `inputSchema` definitions compatible with OpenRouter's GLM-4.6 models.
+The chatbot relies on the **Figma Desktop MCP server** (`http://127.0.0.1:3845/mcp`) as its primary design data source. To cover gaps that MCP cannot address (e.g., enumerating every token in a file), we layer in a lightweight Figma REST fallback that only activates when a `fileId` is explicitly provided. All tooling is surfaced to the LLM through the Vercel AI SDK with `inputSchema` definitions compatible with OpenRouter's GPT-4o Mini models.
 
 ---
 
