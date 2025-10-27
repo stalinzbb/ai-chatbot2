@@ -90,9 +90,12 @@ type TokenCategory =
 
 type TokenBuckets = Record<TokenCategory, Set<string>>;
 
+type NodeKind = "component" | "screen" | "page";
+
 type InternalIndexNode = {
   id: string;
-  componentId: string;
+  nodeId: string;
+  componentId?: string;
   mainComponentId?: string;
   componentName: string;
   normalizedComponentName: string;
@@ -106,15 +109,21 @@ type InternalIndexNode = {
   fileName: string;
   platform: Platform;
   source: Source;
+  kind: NodeKind;
   locations: ComponentLocation[];
   tokens: TokenBuckets;
   allTokens: Set<string>;
   searchText: string;
+  counts?: {
+    screens?: number;
+    components?: number;
+  };
 };
 
 export type FigmaIndexMatch = {
   id: string;
-  componentId: string;
+  nodeId: string;
+  componentId?: string;
   mainComponentId?: string;
   componentName: string;
   variant?: string;
@@ -127,9 +136,14 @@ export type FigmaIndexMatch = {
   fileName: string;
   platform: Platform;
   source: Source;
+  kind: NodeKind;
   locations: ComponentLocation[];
   score: number;
   matchedTokens: string[];
+  counts?: {
+    screens?: number;
+    components?: number;
+  };
 };
 
 export type SearchOptions = {
@@ -181,12 +195,18 @@ const STOPWORDS = new Set([
   "those",
   "it",
   "its",
-  "component",
-  "components",
-  "node",
-  "nodes",
-  "screen",
-  "screens",
+  "how",
+  "many",
+  "much",
+  "does",
+  "do",
+  "did",
+  "exist",
+  "exists",
+  "please",
+  "about",
+  "tell",
+  "show",
 ]);
 
 const PLATFORM_HINTS: Record<string, Platform> = {
@@ -207,6 +227,12 @@ const SOURCE_HINTS: Record<string, Source> = {
   library: "library",
   libraries: "library",
   components: "library",
+};
+
+type KeywordHints = {
+  component: boolean;
+  screen: boolean;
+  page: boolean;
 };
 
 function normalizeText(text: string): string {
@@ -255,6 +281,17 @@ function addTokens(
   }
 }
 
+function createEmptyTokenBuckets(): TokenBuckets {
+  return {
+    name: new Set<string>(),
+    variant: new Set<string>(),
+    tag: new Set<string>(),
+    text: new Set<string>(),
+    path: new Set<string>(),
+    file: new Set<string>(),
+  };
+}
+
 async function loadIndexFile(config: IndexConfig): Promise<RawIndexPayload | null> {
   const filePath = path.join(FIGMA_INDEX_DIR, config.fileName);
 
@@ -282,18 +319,201 @@ async function buildIndexData(): Promise<IndexData> {
     for (const file of payload.files) {
       const pages = file.pages ?? [];
 
-      for (const page of pages) {
+      for (let pageIndex = 0; pageIndex < pages.length; pageIndex += 1) {
+        const page = pages[pageIndex];
         const screens = page.screens ?? [];
+        const totalComponents = screens.reduce(
+          (sum, current) => sum + (current.components?.length ?? 0),
+          0,
+        );
+        const pageNodeId = page.pageId ?? `page-${pageIndex}`;
+        const pageKey = `${file.fileId}:page:${pageNodeId}`;
 
-        for (const screen of screens) {
+        if (!nodes.has(pageKey)) {
+          const allTokens = new Set<string>();
+          const buckets = createEmptyTokenBuckets();
+
+          addTokens(buckets, [page.pageName], "name", allTokens);
+          addTokens(
+            buckets,
+            [
+              `${screens.length} screens`,
+              `${totalComponents} components`,
+              "page",
+            ],
+            "text",
+            allTokens,
+          );
+          addTokens(buckets, [file.fileName, "page"], "file", allTokens);
+
+          nodes.set(pageKey, {
+            id: pageKey,
+            nodeId: pageNodeId,
+            componentName: page.pageName ?? "Unnamed Page",
+            normalizedComponentName: normalizeText(page.pageName ?? ""),
+            tags: new Set<string>(),
+            textSnippets: new Set<string>(),
+            interactions: new Set<string>(),
+            fileId: file.fileId,
+            fileName: file.fileName,
+            platform: config.platform,
+            source: config.source,
+            kind: "page",
+            locations: [
+              {
+                pageId: page.pageId,
+                pageName: page.pageName,
+              },
+            ],
+            tokens: buckets,
+            allTokens,
+            searchText: normalizeText(
+              [
+                page.pageName,
+                "page",
+                `${screens.length} screens`,
+                `${totalComponents} components`,
+                file.fileName,
+              ]
+                .filter(Boolean)
+                .join(" "),
+            ),
+            counts: {
+              screens: screens.length || undefined,
+              components: totalComponents || undefined,
+            },
+          });
+        }
+
+        for (let screenIndex = 0; screenIndex < screens.length; screenIndex += 1) {
+          const screen = screens[screenIndex];
           const components = screen.components ?? [];
+          const screenNodeId =
+            screen.screenId ?? `screen-${pageIndex}-${screenIndex}`;
+          const screenKey = `${file.fileId}:screen:${screenNodeId}`;
+          const screenComponentCount = components.length;
+
+          if (!nodes.has(screenKey)) {
+            const allTokens = new Set<string>();
+            const buckets = createEmptyTokenBuckets();
+
+            addTokens(buckets, [screen.screenName], "name", allTokens);
+            addTokens(
+              buckets,
+              [
+                screen.hierarchyPath,
+                page.pageName,
+              ],
+              "path",
+              allTokens,
+            );
+            addTokens(
+              buckets,
+              [
+                "screen",
+                `${screenComponentCount} components`,
+              ],
+              "text",
+              allTokens,
+            );
+            addTokens(buckets, [file.fileName, "screen"], "file", allTokens);
+
+            nodes.set(screenKey, {
+              id: screenKey,
+              nodeId: screenNodeId,
+              componentName: screen.screenName ?? "Unnamed Screen",
+              normalizedComponentName: normalizeText(screen.screenName ?? ""),
+              description:
+                screenComponentCount > 0
+                  ? `${screenComponentCount} components`
+                  : undefined,
+              tags: new Set<string>(),
+              textSnippets: new Set<string>(),
+              interactions: new Set<string>(),
+              fileId: file.fileId,
+              fileName: file.fileName,
+              platform: config.platform,
+              source: config.source,
+              kind: "screen",
+              locations: [
+                {
+                  pageId: page.pageId,
+                  pageName: page.pageName,
+                  screenId: screen.screenId,
+                  screenName: screen.screenName,
+                  hierarchyPath: screen.hierarchyPath,
+                },
+              ],
+              tokens: buckets,
+              allTokens,
+              searchText: normalizeText(
+                [
+                  screen.screenName,
+                  screen.hierarchyPath,
+                  page.pageName,
+                  "screen",
+                  file.fileName,
+                  `${screenComponentCount} components`,
+                ]
+                  .filter(Boolean)
+                  .join(" "),
+              ),
+              counts:
+                screenComponentCount > 0
+                  ? { components: screenComponentCount }
+                  : undefined,
+            });
+          } else {
+            const existingScreen = nodes.get(screenKey)!;
+
+            existingScreen.locations.push({
+              pageId: page.pageId,
+              pageName: page.pageName,
+              screenId: screen.screenId,
+              screenName: screen.screenName,
+              hierarchyPath: screen.hierarchyPath,
+            });
+
+            if (
+              screenComponentCount > 0 &&
+              !existingScreen.counts?.components
+            ) {
+              existingScreen.counts = {
+                ...(existingScreen.counts ?? {}),
+                components: screenComponentCount,
+              };
+            }
+
+            const additionalText = normalizeText(
+              [
+                screen.screenName,
+                screen.hierarchyPath,
+                page.pageName,
+              ]
+                .filter(Boolean)
+                .join(" "),
+            );
+
+            if (
+              additionalText &&
+              !existingScreen.searchText.includes(additionalText)
+            ) {
+              existingScreen.searchText = `${existingScreen.searchText} ${additionalText}`.trim();
+              addTokens(
+                existingScreen.tokens,
+                [additionalText],
+                "path",
+                existingScreen.allTokens,
+              );
+            }
+          }
 
           for (const component of components) {
             if (!component?.componentId || !component.componentName) {
               continue;
             }
 
-            const key = `${file.fileId}:${component.componentId}`;
+            const key = `${file.fileId}:component:${component.componentId}`;
             const location: ComponentLocation = {
               pageId: page.pageId,
               pageName: page.pageName,
@@ -304,14 +524,7 @@ async function buildIndexData(): Promise<IndexData> {
 
             if (!nodes.has(key)) {
               const allTokens = new Set<string>();
-              const buckets: TokenBuckets = {
-                name: new Set<string>(),
-                variant: new Set<string>(),
-                tag: new Set<string>(),
-                text: new Set<string>(),
-                path: new Set<string>(),
-                file: new Set<string>(),
-              };
+              const buckets = createEmptyTokenBuckets();
 
               addTokens(buckets, [component.componentName], "name", allTokens);
               addTokens(buckets, [component.variant], "variant", allTokens);
@@ -332,10 +545,17 @@ async function buildIndexData(): Promise<IndexData> {
                 "path",
                 allTokens,
               );
-              addTokens(buckets, [file.fileName], "file", allTokens);
+              addTokens(
+                buckets,
+                [file.fileName],
+                "file",
+                allTokens,
+              );
+              addTokens(buckets, ["component"], "text", allTokens);
 
               nodes.set(key, {
                 id: key,
+                nodeId: component.componentId,
                 componentId: component.componentId,
                 mainComponentId: component.mainComponentId,
                 componentName: component.componentName,
@@ -350,6 +570,7 @@ async function buildIndexData(): Promise<IndexData> {
                 fileName: file.fileName,
                 platform: config.platform,
                 source: config.source,
+                kind: "component",
                 locations: [location],
                 tokens: buckets,
                 allTokens,
@@ -363,76 +584,102 @@ async function buildIndexData(): Promise<IndexData> {
                     screen.screenName,
                     screen.hierarchyPath,
                     file.fileName,
+                    "component",
                   ]
                     .filter(Boolean)
                     .join(" "),
                 ),
               });
             } else {
-              const existing = nodes.get(key)!;
+              const existingComponent = nodes.get(key)!;
 
-              existing.locations.push(location);
+              existingComponent.locations.push(location);
 
-              if (!existing.variant && component.variant) {
-                existing.variant = component.variant;
+              if (!existingComponent.variant && component.variant) {
+                existingComponent.variant = component.variant;
                 addTokens(
-                  existing.tokens,
+                  existingComponent.tokens,
                   [component.variant],
                   "variant",
-                  existing.allTokens,
+                  existingComponent.allTokens,
                 );
               }
 
-              if (!existing.description && component.description) {
-                existing.description = component.description;
+              if (!existingComponent.description && component.description) {
+                existingComponent.description = component.description;
               }
 
-              if (!existing.type && component.type) {
-                existing.type = component.type;
+              if (!existingComponent.type && component.type) {
+                existingComponent.type = component.type;
               }
 
               for (const tag of component.tags ?? []) {
-                existing.tags.add(tag);
-                addTokens(
-                  existing.tokens,
-                  [tag],
-                  "tag",
-                  existing.allTokens,
-                );
+                if (!existingComponent.tags.has(tag)) {
+                  existingComponent.tags.add(tag);
+                  addTokens(
+                    existingComponent.tokens,
+                    [tag],
+                    "tag",
+                    existingComponent.allTokens,
+                  );
+                }
               }
 
               for (const snippet of component.textSnippets ?? []) {
-                existing.textSnippets.add(snippet);
-                addTokens(
-                  existing.tokens,
-                  [snippet],
-                  "text",
-                  existing.allTokens,
-                );
+                if (!existingComponent.textSnippets.has(snippet)) {
+                  existingComponent.textSnippets.add(snippet);
+                  addTokens(
+                    existingComponent.tokens,
+                    [snippet],
+                    "text",
+                    existingComponent.allTokens,
+                  );
+                }
               }
 
               for (const interaction of component.interactions ?? []) {
-                existing.interactions.add(interaction);
+                existingComponent.interactions.add(interaction);
               }
+
+              addTokens(
+                existingComponent.tokens,
+                [
+                  page.pageName,
+                  screen.screenName,
+                  screen.hierarchyPath,
+                ].filter(Boolean) as string[],
+                "path",
+                existingComponent.allTokens,
+              );
+              addTokens(
+                existingComponent.tokens,
+                [file.fileName],
+                "file",
+                existingComponent.allTokens,
+              );
+              addTokens(
+                existingComponent.tokens,
+                ["component"],
+                "text",
+                existingComponent.allTokens,
+              );
 
               const additionalText = normalizeText(
                 [
                   page.pageName,
                   screen.screenName,
                   screen.hierarchyPath,
+                  "component",
                 ]
                   .filter(Boolean)
                   .join(" "),
               );
 
-              if (additionalText && !existing.searchText.includes(additionalText)) {
-                existing.searchText = `${existing.searchText} ${additionalText}`.trim();
-                addTokens(
-                  existing.tokens,
-                  [additionalText],
-                  "path",
-                  existing.allTokens,
-                );
+              if (
+                additionalText &&
+                !existingComponent.searchText.includes(additionalText)
+              ) {
+                existingComponent.searchText = `${existingComponent.searchText} ${additionalText}`.trim();
               }
             }
           }
@@ -491,6 +738,7 @@ function scoreMatch(
   normalizedQuery: string,
   platformHint: Platform | null,
   sourceHint: Source | null,
+  keywordHints: KeywordHints,
 ) {
   const matchedTokens = new Set<string>();
   let score = 0;
@@ -557,6 +805,44 @@ function scoreMatch(
     score += Math.min(2, node.locations.length * 0.25);
   }
 
+  if (keywordHints.component) {
+    if (node.kind === "component") {
+      score += 5;
+    } else if (node.kind === "screen") {
+      score -= 1;
+    } else {
+      score -= 2;
+    }
+  }
+
+  if (keywordHints.screen) {
+    if (node.kind === "screen") {
+      score += 7;
+    } else if (node.kind === "page") {
+      score += 4;
+    } else {
+      score -= 2;
+    }
+  }
+
+  if (keywordHints.page) {
+    if (node.kind === "page") {
+      score += 7;
+    } else if (node.kind === "screen") {
+      score += 3;
+    } else {
+      score -= 2;
+    }
+  }
+
+  if (node.counts?.screens) {
+    score += Math.min(4, node.counts.screens * 0.5);
+  }
+
+  if (node.counts?.components && node.kind !== "component") {
+    score += Math.min(3, node.counts.components * 0.25);
+  }
+
   return { score, matchedTokens: Array.from(matchedTokens) };
 }
 
@@ -575,6 +861,15 @@ export async function searchFigmaIndex(
   const { platformHint, sourceHint } = extractHints(rawTokens);
 
   const queryTokens = Array.from(rawTokens);
+  const keywordHints: KeywordHints = {
+    component: queryTokens.some(
+      (token) => token === "component" || token === "components",
+    ),
+    screen: queryTokens.some(
+      (token) => token === "screen" || token === "screens",
+    ),
+    page: queryTokens.some((token) => token === "page" || token === "pages"),
+  };
   const platformFilter =
     options.platform && options.platform !== "both"
       ? options.platform
@@ -592,6 +887,28 @@ export async function searchFigmaIndex(
     const indices = tokenMap.get(token);
     if (indices) {
       for (const index of indices) {
+        candidateIds.add(index);
+      }
+    }
+  }
+
+  if (!candidateIds.size && queryTokens.length) {
+    for (let index = 0; index < nodes.length; index += 1) {
+      const node = nodes[index];
+      let matchedCount = 0;
+
+      for (const token of queryTokens) {
+        if (node.searchText.includes(token)) {
+          matchedCount += 1;
+        }
+      }
+
+      const requiredMatches = Math.max(
+        1,
+        Math.ceil(queryTokens.length * 0.5),
+      );
+
+      if (matchedCount >= requiredMatches) {
         candidateIds.add(index);
       }
     }
@@ -625,6 +942,7 @@ export async function searchFigmaIndex(
       normalizedQuery,
       platformFilter ?? platformHint ?? null,
       sourceFilter ?? sourceHint ?? null,
+      keywordHints,
     );
 
     if (score <= 0) {
@@ -633,6 +951,7 @@ export async function searchFigmaIndex(
 
     matches.push({
       id: node.id,
+      nodeId: node.nodeId,
       componentId: node.componentId,
       mainComponentId: node.mainComponentId,
       componentName: node.componentName,
@@ -646,9 +965,11 @@ export async function searchFigmaIndex(
       fileName: node.fileName,
       platform: node.platform,
       source: node.source,
+      kind: node.kind,
       locations: node.locations,
       score,
       matchedTokens,
+      counts: node.counts,
     });
   }
 
@@ -689,16 +1010,43 @@ export function formatMatchesForPrompt(
         ? primaryLocation.hierarchyPath
         : null;
 
-    const variantLabel = match.variant ? ` — ${match.variant}` : "";
     const platformLabel = match.platform === "native" ? "Native" : "Web";
     const sourceLabel = match.source === "library" ? "Library" : "Master";
+    const kindLabel =
+      match.kind === "component"
+        ? "Component"
+        : match.kind === "screen"
+          ? "Screen"
+          : "Page";
+    const variantLabel =
+      match.kind === "component" && match.variant
+        ? ` — ${match.variant}`
+        : "";
+
+    const detailParts: string[] = [];
+    if (match.kind === "page") {
+      if (typeof match.counts?.screens === "number") {
+        detailParts.push(`screens ${match.counts.screens}`);
+      }
+      if (typeof match.counts?.components === "number") {
+        detailParts.push(`components ${match.counts.components}`);
+      }
+    } else if (match.kind === "screen") {
+      if (typeof match.counts?.components === "number") {
+        detailParts.push(`components ${match.counts.components}`);
+      }
+    }
 
     const parts = [
-      `${index + 1}. ${platformLabel} ${sourceLabel}`,
+      `${index + 1}. ${platformLabel} ${sourceLabel} ${kindLabel}`,
       `${match.componentName}${variantLabel}`,
-      `node ${match.componentId}`,
+      `node ${match.nodeId}`,
       `file ${match.fileName}`,
     ];
+
+    if (detailParts.length) {
+      parts.push(detailParts.join(", "));
+    }
 
     if (locationLabel) {
       parts.push(`location ${locationLabel}`);

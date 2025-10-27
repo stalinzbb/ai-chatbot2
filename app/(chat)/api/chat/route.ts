@@ -198,9 +198,10 @@ export async function POST(request: Request) {
           console.log(
             "[Chat API] Index matches",
             indexSearchOutcome.matches.slice(0, 3).map((match) => ({
-              nodeId: match.componentId,
+              nodeId: match.nodeId,
               fileId: match.fileId,
               component: match.componentName,
+              kind: match.kind,
               score: Number(match.score.toFixed(2)),
             }))
           );

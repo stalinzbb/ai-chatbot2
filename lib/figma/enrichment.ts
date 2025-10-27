@@ -41,6 +41,13 @@ export function decideEnrichment(
   };
 
   const topMatch = outcome.matches[0];
+
+  if (topMatch.kind !== "component") {
+    return {
+      shouldAutoEnrich: false,
+      reason: `Top match is a ${topMatch.kind}, skipping auto-enrichment`,
+    };
+  }
   const coverage =
     outcome.tokens.length > 0
       ? topMatch.matchedTokens.length / outcome.tokens.length
@@ -65,7 +72,7 @@ export function decideEnrichment(
     reason: "High-confidence index match",
     target: {
       fileId: topMatch.fileId,
-      nodeId: topMatch.componentId,
+      nodeId: topMatch.nodeId,
       componentName: topMatch.componentName,
       platform: topMatch.platform,
       source: topMatch.source,

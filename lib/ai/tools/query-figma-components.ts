@@ -36,7 +36,11 @@ export const queryFigmaComponents = tool({
         limit: 12,
       });
 
-      if (indexOutcome.matches.length > 0) {
+      const componentMatches = indexOutcome.matches.filter(
+        (match) => match.kind === "component",
+      );
+
+      if (componentMatches.length > 0) {
         type GroupedComponent = {
           name: string;
           nodeId: string;
@@ -50,17 +54,17 @@ export const queryFigmaComponents = tool({
         };
 
         const mapMatch = (
-          match: (typeof indexOutcome.matches)[number],
+          match: (typeof componentMatches)[number],
         ): GroupedComponent => ({
           name: match.componentName,
-          nodeId: match.componentId,
+          nodeId: match.nodeId,
           variant: match.variant,
           description: match.description ?? "No description available",
           matchedTokens: match.matchedTokens,
           score: Number(match.score.toFixed(2)),
           occurrences: match.locations.slice(0, 5),
           source: match.source,
-          figmaLink: buildFigmaNodeUrl(match.fileId, match.componentId),
+          figmaLink: buildFigmaNodeUrl(match.fileId, match.nodeId),
         });
 
         const groups = new Map<
@@ -74,7 +78,7 @@ export const queryFigmaComponents = tool({
           }
         >();
 
-        for (const match of indexOutcome.matches) {
+        for (const match of componentMatches) {
           const key = match.fileId;
           const existingGroup = groups.get(key);
 
